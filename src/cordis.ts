@@ -77,7 +77,7 @@ export class ResearchConfigService {
     return (this.ctx as { get?(name: string): unknown }).get?.("settings") as SettingsFace | undefined;
   }
 
-  /** 读配置 + 附 UI 所需事实（workspaceRoute = 当前工作区路由缺省，供 placeholder；路由缺位留空不抛）。 */
+  /** 读配置 + 附 UI 所需事实（workspaceRoute = 当前工作区路由缺省，供 placeholder；configPath = 配置段落点名）。 */
   async getConfig(_hint: unknown) {
     let workspaceRoute = "";
     try {
@@ -86,7 +86,7 @@ export class ResearchConfigService {
     } catch {
       /* 工作区路由键缺位：placeholder 走通用提示，不抛 */
     }
-    return { config: this.source(), workspaceRoute };
+    return { config: this.source(), workspaceRoute, configPath: RESEARCH_SETTINGS_NAMESPACE };
   }
 
   /** 写配置：patch 归一化 + 形状预检 → 宿主 settings.replace（schema 校验/持久化 settings.yaml/热推送）。
