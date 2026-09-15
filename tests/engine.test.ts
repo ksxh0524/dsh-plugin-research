@@ -1,6 +1,7 @@
-/** engine.test.ts —— research 编排 v3.1（纯通用）：fake dispatch 全链（主题/来源核查/拉取门/账本/单路由口径）。
+/** engine.test.ts —— research 编排 v4（纯通用）：fake dispatch 全链（三道隔离工序 + 代码门控 + 账本/单路由口径）。
  *
  * dispatch 注入点隔离（不烧钱、不真派）；runner 五段照跑（合同段预检 + validate + nudge 真语义）。
+ * 工序链：初稿（调研员）→ 引擎门 → 审查（审查员 issue 清单）→ 一致性门 →（fix? 修订轮）→ 终稿门。
  * 路由固定走工作区路由表 fixture（.pi/model-router.json content-writer.researcher 键，
  * fallbacks 混入脏行以证「明确不消费」）；web seam 换 fake seam 验 provider 识别各分支。
  * 宿主概念（project/留档/证据行）已摘除——主题进、报告出，零文件 IO。
@@ -11,8 +12,8 @@ import test from "node:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runResearch, resolvePrimaryRoute, buildResearchTask, type ResearchDeps, type ResearchRequest } from "../src/engine.ts";
-import type { ResearchDelivery } from "../src/contract.ts";
+import { runResearch, resolvePrimaryRoute, buildResearchTask, buildReviewTask, buildFixTask, type ResearchDeps, type ResearchRequest } from "../src/engine.ts";
+import type { ResearchDelivery, ReviewDelivery, ReviewIssue } from "../src/contract.ts";
 import type { RunnerDispatchRequest, RunnerDispatchResult, RunnerLedgerRecord } from "aivideo-core/src/subagent/runner.ts";
 import type { WebSeam } from "../src/web.ts";
 
@@ -58,28 +59,33 @@ const DELIVERY: ResearchDelivery = {
   open_questions: ["第三方研报全文未见公开版"],
 };
 
-const FETCH_DELIVERY: ResearchDelivery = {
-  ...DELIVERY,
-  sources: [
-    {
-      src: "SRC-1",
-      title: "KO FY2025 Annual Report",
-      url: "https://investor.example.com/ko-2025",
-      date: "2026-02-15",
-      domain: "investor.example.com",
-      reliability: "官方一手",
-      content: "年报正文：FY2025 营收 470 亿美元，同比 +3%。（足够长以过拉取判定）".repeat(4),
-    },
-    {
-      src: "SRC-2",
-      title: "PE FY2025 10-K",
-      url: "https://investor.example.com/pe-2025",
-      date: "2026-02-10",
-      domain: "investor.example.com",
-      reliability: "权威媒体",
-    },
-  ],
-};
+const SOURCES = [
+  {
+    src: "SRC-1",
+    title: "KO FY2025 Annual Report",
+    url: "https://investor.example.com/ko-2025",
+    date: "2026-02-15",
+    domain: "investor.example.com",
+    reliability: "官方一手",
+    content: "年报正文：FY2025 营收 470 亿美元，同比 +3%。".repeat(8),
+  },
+  {
+    src: "SRC-2",
+    title: "PE FY2025 10-K",
+    url: "https://investor.example.com/pe-2025",
+    date: "2026-02-10",
+    domain: "investor.example.com",
+    reliability: "权威媒体",
+  },
+];
+
+const REVIEW_PASS: ReviewDelivery = { case_id: "c", verdict: "pass", issues: [], report_markdown: OK_REPORT };
+const REVIEW_ISSUES: ReviewIssue[] = [
+  { point: "PE 营收 920 亿美元（SRC-2）", problem: "单一来源且页面打不开，佐证不足", fix_hint: "补查 PE 官网 10-K 或权威媒体二手引用，死链换源" },
+];
+const REVIEW_FIX: ReviewDelivery = { case_id: "c", verdict: "fix", issues: REVIEW_ISSUES, report_markdown: "" };
+const REVIEW_FIX_NO_ISSUES: ReviewDelivery = { case_id: "c", verdict: "fix", issues: [], report_markdown: "" };
+const REVIEW_PASS_WITH_ISSUES: ReviewDelivery = { case_id: "c", verdict: "pass", issues: REVIEW_ISSUES, report_markdown: OK_REPORT };
 
 function makeWs(): string {
   return mkdtempSync(join(tmpdir(), "dsh-research-"));
@@ -110,9 +116,9 @@ function seam(entries: Array<[string, boolean]>, configured?: string): WebSeam {
   };
 }
 
-/** fake dispatch：记录请求；按脚本逐轮回据。 */
+/** fake dispatch：记录请求；按脚本逐轮回据（索引跨工序累计，末位保持最后一步）。 */
 function fakeDispatch(
-  script: Array<(req: RunnerDispatchRequest) => RunnerDispatchResult>,
+  script: Array<() => RunnerDispatchResult>,
   calls: RunnerDispatchRequest[],
 ): (req: RunnerDispatchRequest) => Promise<RunnerDispatchResult> {
   let i = 0;
@@ -120,7 +126,7 @@ function fakeDispatch(
     calls.push(req);
     const step = script[Math.min(i, script.length - 1)];
     i += 1;
-    return step(req);
+    return step();
   };
 }
 
@@ -134,39 +140,47 @@ function deps(
 }
 
 const okStep = (delivery: ResearchDelivery = DELIVERY) => ({ ok: true, output: "ok", structured: delivery, stopReason: "completed" }) as RunnerDispatchResult;
+const reviewStep = (review: ReviewDelivery) => ({ ok: true, output: "ok", structured: review, stopReason: "completed" }) as RunnerDispatchResult;
 
-test("research 快乐链（纯通用）：主题 → 单路由派单 → 内容门 → 收据回报告全文（默认不带附录）", async () => {
+const draftTaskOf = (calls: RunnerDispatchRequest[]): string => calls[0].task;
+const reviewTaskOf = (calls: RunnerDispatchRequest[]): string => calls[1].task;
+
+test("research 快乐链（审查 pass）：初稿 → 审查放行 → 收据（终稿过代码门，零修订轮）", async () => {
   const ws = makeWs();
   try {
     seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const ledger: RunnerLedgerRecord[] = [];
     const req: ResearchRequest = { topic: "2025 财年可口可乐与百事的财报对比" };
-    const out = await runResearch(req, deps(ws, fakeDispatch([() => okStep()], calls), ledger, seam([["exa", true]])));
+    const out = await runResearch(req, deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_PASS)], calls), ledger, seam([["exa", true]])));
     assert.equal(out.verdict, "pass");
-    assert.ok(out.report.startsWith("# 调研报告"), "报告全文随收据回调用方");
+    assert.ok(out.report.startsWith("# 调研报告"), "终稿报告随收据回调用方");
     assert.equal(out.appendix, "", "默认不拉来源，无附录");
+    assert.match(out.text, /初稿审查通过/);
     assert.match(out.text, /2 条事实/);
     assert.match(out.text, /provider=exa/u);
+    assert.equal(out.details.reviewed, "pass");
     assert.ok(!("path" in out.details), "零宿主概念：收据无落档路径");
-    // 任务书：四段流程 + 来源核查默认内建 + provider 行 + 主题 + 守则
-    assert.equal(calls.length, 1, "单路由：一次派单");
-    const task = calls[0].task;
-    assert.ok(task.includes("研究流程（四段"));
-    assert.ok(task.includes("你是调研员（Researcher）"), "身份是调研员不是写手");
-    assert.ok(task.includes("来源核查（本职"), "来源核查默认内建，不占参数面");
-    assert.ok(task.includes("单一来源"));
-    assert.ok(task.includes("可靠性"));
-    assert.ok(task.includes("独立性"));
-    assert.ok(task.includes("有用性"));
-    assert.ok(task.includes("多方比对") || task.includes("并列呈现"), "跨来源比对在流程里");
-    assert.ok(task.includes("provider=exa"));
-    assert.ok(task.includes("不落盘"));
-    assert.ok(task.includes("2025 财年可口可乐与百事的财报对比"));
-    assert.ok(task.includes("禁止凭记忆编造"));
-    assert.ok(!task.includes("已知待查清单"), "无 strands 不出该节");
-    assert.ok(!task.includes("来源拉取（本单要求"), "默认不拉来源，任务书无拉取段");
-    // 账本：open/attempt/finish 三笔 + 信封目录落点
+    // 工序任务书：调研员（自判详略+交叉比对+打标）与审查员（亲核+issue 三段式+不重写主体）
+    assert.equal(calls.length, 2, "审查 pass = 两道隔离工序");
+    const draftTask = draftTaskOf(calls);
+    assert.ok(draftTask.includes("你是调研员（Researcher）"), "身份是调研员不是写手");
+    assert.ok(draftTask.includes("自判"), "主题详略自判进任务书");
+    assert.ok(draftTask.includes("逐源交叉比对"));
+    assert.ok(draftTask.includes("〔单一来源〕"));
+    assert.ok(draftTask.includes("corroboration"));
+    assert.ok(draftTask.includes("provider=exa"));
+    assert.ok(draftTask.includes("不落盘"));
+    assert.ok(draftTask.includes("2025 财年可口可乐与百事的财报对比"));
+    assert.ok(draftTask.includes("禁止凭记忆编造"));
+    assert.ok(!draftTask.includes("已知待查清单"), "无 strands 不出该节");
+    const reviewTask = reviewTaskOf(calls);
+    assert.ok(reviewTask.includes("你是审查员（Reviewer）"));
+    assert.ok(reviewTask.includes("复核维度（逐条过，不得抽查豁免）"));
+    assert.ok(reviewTask.includes("fix_hint"));
+    assert.ok(reviewTask.includes("不重写报告主体"));
+    assert.ok(reviewTask.includes("```markdown"), "审查任务书嵌冻结初稿");
+    // 账本：open/attempt×2/finish + 信封目录落点
     assert.ok(ledger.some((r) => r.kind === "open"));
     assert.ok(ledger.some((r) => r.kind === "attempt" && r.attempt.kind === "fresh" && r.attempt.ok));
     assert.ok(ledger.some((r) => r.kind === "finish" && r.ok));
@@ -176,20 +190,99 @@ test("research 快乐链（纯通用）：主题 → 单路由派单 → 内容�
   }
 });
 
-test("research fetch_sources=true：任务书带来源拉取交付段；交付含 sources → pass 带附录与元数据", async () => {
+test("research fix 链：审查退回 → 修订轮 → 终稿（三道工序，issue 清单进修订任务书）", async () => {
   const ws = makeWs();
   try {
     seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const out = await runResearch(
-      { topic: "可乐财报", fetchSources: true },
-      deps(ws, fakeDispatch([() => okStep(FETCH_DELIVERY)], calls), undefined, seam([["exa", true]])),
+      { topic: "可乐财报" },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_FIX), () => okStep()], calls), undefined, seam([["exa", true]])),
     );
     assert.equal(out.verdict, "pass");
-    const task = calls[0].task;
-    assert.ok(task.includes("来源拉取（本单要求，必须执行）"), "拉取段进任务书");
-    assert.ok(task.includes('"content":"<页面正文 markdown'));
-    // 附录：报告之外独立文本块，带成功/失败标注
+    assert.equal(calls.length, 3, "初稿/审查/修订三道工序");
+    const fixTask = calls[2].task;
+    assert.ok(fixTask.includes("你是调研员（Researcher，修订轮）"));
+    assert.ok(fixTask.includes("issue 清单（必须逐条有着落）"));
+    assert.ok(fixTask.includes("佐证不足"), "审查 issue 进修订任务书");
+    assert.ok(fixTask.includes("补查 PE 官网 10-K"), "fix_hint 进修订任务书");
+    assert.match(out.text, /三道工序含修订/u);
+    assert.equal(out.details.reviewed, "fix-revised");
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("research 审查结论一致性门：fix 却无 issues → 拒；pass 却带 issues → 拒（都不派修订轮）", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    const calls: RunnerDispatchRequest[] = [];
+    const noIssues = await runResearch(
+      { topic: "t" },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_FIX_NO_ISSUES), () => okStep()], calls), undefined, seam([["exa", true]])),
+    );
+    assert.equal(noIssues.verdict, "error");
+    assert.match(noIssues.text, /判 fix 却未给 issue 清单/u);
+    assert.equal(calls.length, 2, "一致性门先拦，修订轮未派");
+    const withIssues = await runResearch(
+      { topic: "t" },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_PASS_WITH_ISSUES), () => okStep()], calls), undefined, seam([["exa", true]])),
+    );
+    assert.equal(withIssues.verdict, "error");
+    assert.match(withIssues.text, /判 pass 却附带 issue 清单/u);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("research 修订轮失败（审查退回后 structured 缺失）→ error，不给未修订报告", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    const bad = { ok: true, output: "无结构化交付", structured: null, stopReason: "completed" } as RunnerDispatchResult;
+    const out = await runResearch(
+      { topic: "t" },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_FIX), () => bad], []), undefined, seam([["exa", true]])),
+    );
+    assert.equal(out.verdict, "error");
+    assert.match(out.text, /修订阶段失败/u);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("research 终稿标注门（fix 链）：来源行缺〔可靠性：〕标注 → 代码门拒收", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    const unmarked = {
+      ...DELIVERY,
+      report_markdown: OK_REPORT.replace("〔可靠性：官方一手〕", "").replace("〔可靠性：权威媒体〕", ""),
+    } as ResearchDelivery;
+    const out = await runResearch(
+      { topic: "t" },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_FIX), () => okStep(unmarked)], []), undefined, seam([["exa", true]])),
+    );
+    assert.equal(out.verdict, "error");
+    assert.match(out.text, /\[来源标注\] 来源行缺可靠性标注/u);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("research fetch_sources=true（pass 链）：审查任务书带拉取段；审查交付 sources → 收据带附录与计数", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    const calls: RunnerDispatchRequest[] = [];
+    const reviewPassWithSources: ReviewDelivery = { ...REVIEW_PASS, sources: SOURCES };
+    const out = await runResearch(
+      { topic: "可乐财报", fetchSources: true },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(reviewPassWithSources)], calls), undefined, seam([["exa", true]])),
+    );
+    assert.equal(out.verdict, "pass");
+    assert.ok(reviewTaskOf(calls).includes("来源拉取（本单要求，必须执行）"), "拉取段进审查任务书");
     assert.ok(out.appendix.includes("## 附：来源全文"));
     assert.ok(out.appendix.includes("### [SRC-1] KO FY2025 Annual Report"));
     assert.ok(out.appendix.includes("（拉取失败，无全文）"), "content 缺席的来源如实标注");
@@ -202,34 +295,54 @@ test("research fetch_sources=true：任务书带来源拉取交付段；交付�
   }
 });
 
-test("research fetch_sources=true 但交付无 sources[] → 拉取门拦截（error，不放宽）", async () => {
+test("research fetch_sources=true（fix 链）：审查员已拉来源进修订任务书；修订交付 sources 过拉取门", async () => {
   const ws = makeWs();
   try {
     seedRoutes(ws);
+    const calls: RunnerDispatchRequest[] = [];
+    const reviewFixWithSources: ReviewDelivery = { ...REVIEW_FIX, sources: SOURCES };
+    const fixed: ResearchDelivery = { ...DELIVERY, sources: SOURCES };
     const out = await runResearch(
       { topic: "可乐财报", fetchSources: true },
-      deps(ws, async () => okStep(), undefined, seam([["exa", true]])),
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(reviewFixWithSources), () => okStep(fixed)], calls), undefined, seam([["exa", true]])),
     );
-    assert.equal(out.verdict, "error");
-    assert.match(out.text, /fetch_sources=true 但交付未附 sources/u);
+    assert.equal(out.verdict, "pass");
+    const fixTask = calls[2].task;
+    assert.ok(fixTask.includes("审查员已拉的来源全文"), "审查员 sources 带给修订轮，避免重复拉取");
+    assert.ok(fixTask.includes("来源拉取（本单要求"));
+    assert.equal(out.details.sources_fetched, 1);
   } finally {
     rmSync(ws, { recursive: true, force: true });
   }
 });
 
-test("research：库级可选 strands（调用方自带已知条目）进任务书；工具面不暴露该参数", async () => {
+test("research fetch_sources=true 但审查交付无 sources[] → 终稿拉取门拦截（error）", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    const out = await runResearch(
+      { topic: "可乐财报", fetchSources: true },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_PASS), () => okStep()], []), undefined, seam([["exa", true]])),
+    );
+    assert.equal(out.verdict, "error");
+    assert.match(out.text, /\[拉取\] fetch_sources=true 但交付未附 sources/u);
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("research：库级可选 strands（调用方自带已知条目）进初稿任务书；工具面不暴露该参数", async () => {
   const ws = makeWs();
   try {
     seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const out = await runResearch(
       { topic: "主题甲", strands: ["待查事项乙"] },
-      deps(ws, fakeDispatch([() => okStep()], calls), undefined, seam([["exa", true]])),
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_PASS)], calls), undefined, seam([["exa", true]])),
     );
     assert.equal(out.verdict, "pass");
-    const task = calls[0].task;
-    assert.ok(task.includes("已知待查清单"));
-    assert.ok(task.includes("1. 待查事项乙"));
+    assert.ok(draftTaskOf(calls).includes("已知待查清单"));
+    assert.ok(draftTaskOf(calls).includes("1. 待查事项乙"));
   } finally {
     rmSync(ws, { recursive: true, force: true });
   }
@@ -303,7 +416,7 @@ test("research：配置 provider 落空（未注册/不可用）→ 收据 error
   }
 });
 
-test("research：调研员全轮失败（fresh+nudge 仍 structured 缺失）→ 收据 error 全量保全，无 fallback 第三轮", async () => {
+test("research：初稿全轮失败（fresh+nudge 仍 structured 缺失）→ 收据 error，无审查轮", async () => {
   const ws = makeWs();
   try {
     seedRoutes(ws);
@@ -311,41 +424,46 @@ test("research：调研员全轮失败（fresh+nudge 仍 structured 缺失）→
     const bad = { ok: true, output: "无结构化交付", structured: null, stopReason: "completed" } as RunnerDispatchResult;
     const out = await runResearch({ topic: "t" }, deps(ws, fakeDispatch([() => bad, () => bad], calls), undefined, seam([["exa", true]])));
     assert.equal(out.verdict, "error");
-    assert.match(out.text, /调研派单失败/);
+    assert.match(out.text, /调研派单失败（初稿阶段/);
     assert.equal(calls.length, 2, "fresh + nudge 各一轮（单路由口径，routes 长度 1）");
   } finally {
     rmSync(ws, { recursive: true, force: true });
   }
 });
 
-test("research：nudge 一轮翻盘 → pass 且 attempts 记 fresh/nudge", async () => {
+test("research：初稿 nudge 一轮翻盘 → 审查继续，收据 pass", async () => {
   const ws = makeWs();
   try {
     seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const ledger: RunnerLedgerRecord[] = [];
     const bad = { ok: true, output: "无结构化交付", structured: null, stopReason: "completed" } as RunnerDispatchResult;
-    const out = await runResearch({ topic: "t" }, deps(ws, fakeDispatch([() => bad, () => okStep()], calls), ledger, seam([["exa", true]])));
+    const out = await runResearch(
+      { topic: "t" },
+      deps(ws, fakeDispatch([() => bad, () => okStep(), () => reviewStep(REVIEW_PASS)], calls), ledger, seam([["exa", true]])),
+    );
     assert.equal(out.verdict, "pass");
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     const attempts = ledger.filter((r) => r.kind === "attempt").map((r) => (r as { attempt: { kind: string } }).attempt.kind);
-    assert.deepEqual(attempts, ["fresh", "nudge"]);
+    assert.deepEqual(attempts, ["fresh", "nudge", "fresh"], "初稿轮 fresh 败→nudge 翻盘 + 审查轮 fresh");
   } finally {
     rmSync(ws, { recursive: true, force: true });
   }
 });
 
-test("research：内容门拦短报告交付 → 收据 error", async () => {
+test("research：初稿内容门拦短报告交付 → 收据 error，无审查轮", async () => {
   const ws = makeWs();
   try {
     seedRoutes(ws);
+    const calls: RunnerDispatchRequest[] = [];
     const thinDelivery = { ...DELIVERY, report_markdown: "太短" } as ResearchDelivery;
     const out = await runResearch(
       { topic: "t", caseId: "research-thin" },
-      deps(ws, async () => okStep(thinDelivery), undefined, seam([["exa", true]])),
+      deps(ws, fakeDispatch([() => okStep(thinDelivery), () => reviewStep(REVIEW_PASS)], calls), undefined, seam([["exa", true]])),
     );
     assert.equal(out.verdict, "error");
-    assert.match(out.text, /交付内容门未过.*实质不足/u);
+    assert.match(out.text, /初稿内容门未过.*实质不足/u);
+    assert.equal(calls.length, 1, "初稿门先拦，审查轮未派");
   } finally {
     rmSync(ws, { recursive: true, force: true });
   }
@@ -369,22 +487,50 @@ test("resolvePrimaryRoute：config.routes 显式第一优先（多给忽略）�
   }
 });
 
-test("buildResearchTask：四段流程与来源核查内建；strands 并入；fetchSources 开关增删拉取段", () => {
-  const task = buildResearchTask({ caseId: "research-x", topic: "主题甲", strands: ["待查事项乙"], providerId: "exa", fetchSources: false });
-  assert.ok(task.includes("你是调研员（Researcher）"));
-  assert.ok(task.includes("case_id: research-x"));
-  assert.ok(task.includes("provider=exa"));
-  assert.ok(task.includes("已知待查清单"));
-  assert.ok(task.includes("1. 待查事项乙"));
-  assert.ok(task.includes("来源核查（本职"));
-  assert.ok(task.includes("〔单一来源〕"));
-  assert.ok(task.includes('"report_markdown":"<完整报告全文>"'));
-  assert.ok(task.includes("[SRC-1]"));
-  assert.ok(!task.includes("来源拉取（本单要求"), "false 不出拉取段");
-  // fetchSources=true：拉取段 + 交付示例带 sources
-  const fetchTask = buildResearchTask({ caseId: "r", topic: "t", providerId: "exa", fetchSources: true });
-  assert.ok(fetchTask.includes("来源拉取（本单要求，必须执行）"));
-  assert.ok(fetchTask.includes('"sources":['));
-  const bare = buildResearchTask({ caseId: "r", topic: "t", providerId: "exa", fetchSources: false });
-  assert.ok(!bare.includes("已知待查清单"));
+test("任务书单元：三工序任务书形态（draft 自判/打标；review 复核维度+判据；fix 逐条有着落）", () => {
+  const draft = buildResearchTask({ caseId: "r", topic: "主题甲", strands: ["待查事项乙"], providerId: "exa" });
+  assert.ok(draft.includes("你是调研员（Researcher）"));
+  assert.ok(draft.includes("case_id: r"));
+  assert.ok(draft.includes("provider=exa"));
+  assert.ok(draft.includes("已知待查清单"));
+  assert.ok(draft.includes("1. 待查事项乙"));
+  assert.ok(draft.includes("自判"));
+  assert.ok(draft.includes("逐源交叉比对"));
+  assert.ok(draft.includes("〔单一来源〕"));
+  assert.ok(draft.includes('"report_markdown":"<完整初稿全文>"'));
+  assert.ok(draft.includes("[SRC-1]"));
+
+  const review = buildReviewTask({ caseId: "r", topic: "主题甲", draft: DELIVERY, providerId: "exa", fetchSources: false });
+  assert.ok(review.includes("你是审查员（Reviewer）"));
+  assert.ok(review.includes("复核维度"));
+  assert.ok(review.includes("verdict 判据"));
+  assert.ok(review.includes("可乐双雄 2025 财年"), "初稿冻结嵌入");
+  assert.ok(!review.includes("来源拉取（本单要求"), "fetchSources=false 无拉取段");
+  const reviewFetch = buildReviewTask({ caseId: "r", topic: "t", draft: DELIVERY, providerId: "exa", fetchSources: true });
+  assert.ok(reviewFetch.includes("来源拉取（本单要求，必须执行）"));
+
+  const fix = buildFixTask({
+    caseId: "r",
+    topic: "主题甲",
+    draft: DELIVERY,
+    issues: REVIEW_ISSUES,
+    providerId: "exa",
+    fetchSources: false,
+    reviewerSources: "",
+  });
+  assert.ok(fix.includes("你是调研员（Researcher，修订轮）"));
+  assert.ok(fix.includes("issue 清单"));
+  assert.ok(fix.includes("佐证不足"));
+  assert.ok(!fix.includes("审查员已拉"), "无已拉材料不出该节");
+  const fixFetch = buildFixTask({
+    caseId: "r",
+    topic: "t",
+    draft: DELIVERY,
+    issues: [],
+    providerId: "exa",
+    fetchSources: true,
+    reviewerSources: '[{"src":"SRC-1"}]',
+  });
+  assert.ok(fixFetch.includes("审查员已拉的来源全文"));
+  assert.ok(fixFetch.includes('"sources":['));
 });

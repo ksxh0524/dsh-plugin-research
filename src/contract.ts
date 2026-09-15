@@ -42,6 +42,63 @@ export type ResearchSource = {
   content?: string;
 };
 
+/** 审查员 issue（review 轮交付 issues[] 元素；退回修订的最小完备信息）。 */
+export type ReviewIssue = {
+  /** 哪里有问题（哪条事实/哪个来源/哪条研究线，可定位）。 */
+  point: string;
+  /** 什么问题（与原文不符/死链/佐证不足/标注缺失/口径冲突未并列…）。 */
+  problem: string;
+  /** 怎么补（补查什么检索式/换什么来源/怎么改写）。 */
+  fix_hint: string;
+};
+
+/** 审查员 structured 交付（review 轮；隔离工序，与调研员互不可见会话）。 */
+export type ReviewDelivery = {
+  case_id: string;
+  /** pass = 放行；fix = 退回调研员修订（issues 必须非空）。 */
+  verdict: "pass" | "fix";
+  issues: ReviewIssue[];
+  /** pass 时 =（笔误级修正后的）报告；fix 时可空串（修订轮以初稿+issues 为基底）。 */
+  report_markdown: string;
+  /** fetch_sources=true 时审查员复核顺路拉的来源全文。 */
+  sources?: ResearchSource[];
+};
+
+/** 审查员交付 schema（object-rooted 最小子集）。 */
+export const REVIEW_DELIVERY_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  required: ["case_id", "verdict", "issues", "report_markdown"],
+  properties: {
+    case_id: { type: "string" },
+    verdict: { type: "string", enum: ["pass", "fix"] },
+    issues: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["point", "problem", "fix_hint"],
+        properties: { point: { type: "string" }, problem: { type: "string" }, fix_hint: { type: "string" } },
+      },
+    },
+    report_markdown: { type: "string" },
+    sources: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["src", "title", "url", "domain", "reliability"],
+        properties: {
+          src: { type: "string" },
+          title: { type: "string" },
+          url: { type: "string" },
+          date: { type: "string" },
+          domain: { type: "string" },
+          reliability: { type: "string" },
+          content: { type: "string" },
+        },
+      },
+    },
+  },
+};
+
 /** 调研写手 structured 交付。 */
 export type ResearchDelivery = {
   case_id: string;
@@ -166,4 +223,33 @@ export function renderSourceAppendix(sources: ResearchSource[]): string {
   }
   lines.push(`（拉取成功 ${fetched}/${sources.length} 份）`, "");
   return lines.join("\n");
+}
+
+/**
+ * 终稿来源标注完整性门（代码确定性检查，不赌模型自觉；fix 轮与 pass 放行都过这道）：
+ * ① 来源清单行存在且每行带〔可靠性：五档之一〕；
+ * ② 存在单源事实（corroboration 缺席/空）时正文必有〔单一来源〕标注；
+ * ③ facts 的 corroboration 引用的 [SRC-n] 必须在报告里存在。
+ */
+export function verifyFinalReport(delivery: ResearchDelivery): { ok: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const report = String(delivery.report_markdown ?? "");
+  const srcLines = report.split(/\r?\n/u).filter((l) => /^- \[SRC-\d+\]/u.test(l.trim()));
+  if (srcLines.length === 0) {
+    errors.push("报告无来源清单行（- [SRC-n] …）");
+  } else {
+    for (const line of srcLines) {
+      if (!line.includes("〔可靠性：")) errors.push(`来源行缺可靠性标注：${line.slice(0, 70)}`);
+      else if (!RELIABILITY_TIERS.some((t) => line.includes(`〔可靠性：${t}`))) errors.push(`来源行可靠性不在五档：${line.slice(0, 70)}`);
+    }
+  }
+  const facts = Array.isArray(delivery.facts) ? delivery.facts : [];
+  const hasSingle = facts.some((f) => !Array.isArray(f?.corroboration) || f.corroboration.length === 0);
+  if (hasSingle && !report.includes("〔单一来源〕")) errors.push("存在单一来源事实但正文无〔单一来源〕标注");
+  for (const f of facts) {
+    for (const c of Array.isArray(f?.corroboration) ? f.corroboration : []) {
+      if (!report.includes(`[${c}]`)) errors.push(`corroboration 引用 ${c} 不在报告来源清单`);
+    }
+  }
+  return { ok: errors.length === 0, errors };
 }

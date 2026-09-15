@@ -7,9 +7,11 @@ import test from "node:test";
 import {
   validateDelivery,
   validateSourceFetch,
+  verifyFinalReport,
   renderSourceAppendix,
   REPORT_MIN_CHARS,
   RESEARCH_DELIVERY_SCHEMA,
+  REVIEW_DELIVERY_SCHEMA,
   type ResearchDelivery,
 } from "../src/contract.ts";
 
@@ -18,7 +20,7 @@ const OK_REPORT = [
   "## 摘要",
   "三条研究线均有着落，结论置信度高：主结论如下。",
   "## 正文",
-  "研究线一（财务）：营收 470 亿美元 [SRC-1]；研究线二（产品线）：新品占比提升 [SRC-2]。",
+  "研究线一（财务）：营收 470 亿美元 [SRC-1]；研究线二（产品线）：新品占比提升〔单一来源〕 [SRC-2]。",
   "## 矛盾与缺口",
   "两家对市场份额口径不一致，如实并列。",
   "## 方法与局限说明",
@@ -26,8 +28,8 @@ const OK_REPORT = [
   "## 待核实余项",
   "- 研报数据缺口",
   "## 来源清单",
-  "- [SRC-1] KO FY2025 Annual Report — https://investor.example.com/ko-2025（2026-02-15，investor.example.com）",
-  "- [SRC-2] PE FY2025 10-K — https://investor.example.com/pe-2025（2026-02-10，investor.example.com）",
+  "- [SRC-1] KO FY2025 Annual Report — https://investor.example.com/ko-2025（2026-02-15，investor.example.com）〔可靠性：官方一手〕",
+  "- [SRC-2] PE FY2025 10-K — https://investor.example.com/pe-2025（2026-02-10，investor.example.com）〔可靠性：权威媒体〕",
 ].join("\n");
 
 const OK_DELIVERY: ResearchDelivery = {
@@ -186,5 +188,48 @@ test("RESEARCH_DELIVERY_SCHEMA：facts 项含 reliability/corroboration 可选�
   assert.ok("reliability" in factItems);
   assert.ok("corroboration" in factItems);
   const sourceItems = (RESEARCH_DELIVERY_SCHEMA.properties as Record<string, { items: { required: string[] } }>).sources.items.required;
+  assert.deepEqual([...sourceItems].sort(), ["domain", "reliability", "src", "title", "url"].sort());
+});
+
+test("verifyFinalReport：来源行缺/错档可靠性、单源未打标、corroboration 引用不存在 各自拦截；合规通过", () => {
+  const good: ResearchDelivery = {
+    case_id: "c",
+    status: "completed",
+    report_markdown: OK_REPORT,
+    facts: [
+      { assertion: "a", url: "https://a.example.com/1", date: "unknown", domain: "a.example.com", corroboration: ["SRC-2"] },
+      { assertion: "b", url: "https://a.example.com/2", date: "unknown", domain: "a.example.com" },
+    ],
+    open_questions: ["x"],
+  };
+  assert.deepEqual(verifyFinalReport(good), { ok: true, errors: [] });
+
+  const noTier = verifyFinalReport({ ...good, report_markdown: OK_REPORT.replace("〔可靠性：官方一手〕", "") });
+  assert.equal(noTier.ok, false);
+  assert.ok(noTier.errors.some((e) => e.includes("来源行缺可靠性标注")));
+
+  const badTier = verifyFinalReport({ ...good, report_markdown: OK_REPORT.replace("〔可靠性：权威媒体〕", "〔可靠性：五星级〕") });
+  assert.equal(badTier.ok, false);
+  assert.ok(badTier.errors.some((e) => e.includes("可靠性不在五档")));
+
+  const noList = verifyFinalReport({ ...good, report_markdown: OK_REPORT.replace(/^- \[SRC-\d+\].*$/gmu, "") });
+  assert.equal(noList.ok, false);
+  assert.ok(noList.errors.some((e) => e.includes("无来源清单行")));
+
+  const noSingleMark = verifyFinalReport({ ...good, report_markdown: OK_REPORT.replace("〔单一来源〕", "") });
+  assert.equal(noSingleMark.ok, false);
+  assert.ok(noSingleMark.errors.some((e) => e.includes("单一来源事实但正文无")));
+
+  const deadRef = verifyFinalReport({ ...good, facts: [{ ...good.facts[0], corroboration: ["SRC-9"] }] });
+  assert.equal(deadRef.ok, false);
+  assert.ok(deadRef.errors.some((e) => e.includes("SRC-9 不在报告来源清单")));
+});
+
+test("REVIEW_DELIVERY_SCHEMA：verdict 枚举 + issues 项三段必填 + sources 项五字段必填", () => {
+  const schema = REVIEW_DELIVERY_SCHEMA as { properties: Record<string, Record<string, unknown>> };
+  assert.deepEqual((schema.properties.verdict as { enum: string[] }).enum, ["pass", "fix"]);
+  const issueItems = (schema.properties.issues as { items: { required: string[] } }).items.required;
+  assert.deepEqual([...issueItems].sort(), ["fix_hint", "point", "problem"].sort());
+  const sourceItems = (schema.properties.sources as { items: { required: string[] } }).items.required;
   assert.deepEqual([...sourceItems].sort(), ["domain", "reliability", "src", "title", "url"].sort());
 });

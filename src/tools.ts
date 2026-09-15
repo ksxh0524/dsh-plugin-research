@@ -51,7 +51,7 @@ function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; r
   return dtool({
     name: "research",
     description:
-      "通用主题式深度调研（deep-research 型，唯一入口）：给一个主题（如「收集 2025 财年可口可乐与百事的全部财报与研报」），隔离调研员（Researcher）子会话自主分解研究线 → web_search/web_fetch 定向查证 → 来源核查（有用性核查、单一来源检测与可靠性评级打标、多方比对——默认内建）→ 合成带来源的完整调研报告（内联 [SRC-n] + 编号来源清单）交回调用方。注意：这是深度调研工具，不是轻量单查——单点小问题直接 web_search 即可，别占这里。可选 fetch_sources=true 把引用来源的全文拉下来随报告附回（缺省不要）。搜索 provider 读宿主 web seam 配置（exa/deepseek，配谁用谁）。单路由口径：fallback 未启用。",
+      "通用主题式深度调研（deep-research 型，唯一入口）：给一个主题（如「收集 2025 财年可口可乐与百事的全部财报与研报」，给得粗或细都行，流程自判），引擎代码驱动三道隔离工序——① 调研员（Researcher）子会话自主分解研究线 → web_search/web_fetch 定向查证 → 逐源交叉比对 → 全量打标（可靠性五档/单一来源/佐证编号）合成初稿；② 审查员（Reviewer，隔离会话只拿冻结初稿）亲核来源出具结构化 issue 清单；③ 有疑问退回调研员修订轮补研。终稿必须过引擎代码门（来源清单逐行带〔可靠性：…〕、单源事实必标〔单一来源〕）才交回调用方（内联 [SRC-n] + 编号来源清单 + 可选来源全文附录）。可选 fetch_sources=true 把引用来源的全文拉下来随报告附回（缺省不要）。搜索 provider 读宿主 web seam 配置（exa/deepseek，配谁用谁）。单路由口径：fallback 未启用。",
     parameters: {
       topic: { type: "string", required: true, description: "调研主题（一句话，如「收集 2025 财年可口可乐与百事的全部财报与研报」）" },
       fetch_sources: { type: "boolean", description: "把引用来源的页面全文拉下来随报告附回（缺省 false——报告默认只带来源链接与可靠性标注）" },
