@@ -84,3 +84,9 @@ A **research config card** inside the host's Settings → Plugins section (the o
 ## Install
 
 Add the dependency and bundle name to the profile's `package.json`; the package ships its own `cordis.patch.yml` bundle row. Host restart is user-owned.
+
+## Browser E2E (UI verification)
+
+`pnpm check:browser` boots a disposable instance (isolated `DSH_HOME`, port 0) and drives
+headless Chrome through settings -> plugins -> the research card, asserting real DOM.
+Any browser-half change must pass it (STANDARDS section 5, dsh-check gate 8).

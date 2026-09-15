@@ -84,3 +84,8 @@ flowchart TD
 ## 挂载
 
 profile `package.json` 加依赖 + `dsh.profile.bundles` 加包名；本包自带 `cordis.patch.yml` bundle 行。宿主重启只归用户。
+
+## 浏览器 E2E（UI 验证）
+
+`pnpm check:browser` 自起一次性实例（隔离 `DSH_HOME`、port 0），真驱动无头 Chrome 走
+「设置 → 插件 → research 卡」全链 DOM 断言。浏览器半任何改动必须过它（STANDARDS §5，dsh-check 第 8 门）。
