@@ -39,5 +39,24 @@ uiScenarioSuite({
         if (optionCount < 1) throw new Error("provider 下拉无选项——remote 读配置链路未通");
       },
     },
+    {
+      name: "写链：改模型 → 保存 → 收起重开回读新值（settings 段落真持久化）",
+      async run({ page }) {
+        const dialog = page.locator('[role="dialog"]').last();
+        // 模型输入框（.rsch-row 里 label「模型」同排 input）。
+        const modelRow = dialog.locator(".rsch-row", { hasText: "模型" }).first();
+        const modelInput = modelRow.locator("input").first();
+        await modelInput.fill("deepseek/test-model");
+        await dialog.locator(".rsch-save").click();
+        await dialog.getByText("已保存", { exact: false }).first().waitFor({ timeout: 10_000 });
+        // 收起再开：切走 nav 再切回，组件重挂走远端读回。
+        await dialog.locator("span", { hasText: "通用设置" }).first().click();
+        await dialog.locator("span", { hasText: "插件" }).first().click();
+        await dialog.getByText("网页搜索", { exact: true }).first().click();
+        await page.locator(".rsch-root .rsch-input").first().waitFor({ state: "visible", timeout: 20_000 });
+        const value = await dialog.locator(".rsch-row", { hasText: "模型" }).first().locator("input").first().inputValue();
+        if (value !== "deepseek/test-model") throw new Error(`回读失配：${JSON.stringify(value)}`);
+      },
+    },
   ],
 });
