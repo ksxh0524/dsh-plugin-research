@@ -17,9 +17,6 @@ importers:
       aivideo-core:
         specifier: link:../aivideo-core
         version: link:../aivideo-core
-      dsh-check:
-        specifier: link:../dsh-check
-        version: link:../dsh-check
     devDependencies:
       '@commitlint/cli':
         specifier: ^21.0.2
@@ -30,6 +27,9 @@ importers:
       '@types/node':
         specifier: ^24.2.0
         version: 24.13.4
+      dsh-check:
+        specifier: link:../dsh-check
+        version: link:../dsh-check
       husky:
         specifier: ^9.1.7
         version: 9.1.7
