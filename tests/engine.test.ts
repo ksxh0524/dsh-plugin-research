@@ -2,7 +2,7 @@
  *
  * dispatch 注入点隔离（不烧钱、不真派）；runner 五段照跑（合同段预检 + validate + nudge 真语义）。
  * 工序链：初稿（调研员）→ 引擎门 → 审查（审查员 issue 清单）→ 一致性门 →（fix? 修订轮）→ 终稿门。
- * 路由固定走工作区路由表 fixture（.pi/model-router.json content-writer.researcher 键，
+ * 路由固定走工作区路由表 fixture（.av/model-router.json content-writer.researcher 键——工作区路由表锚 2026-09-15 晚随 aivideo-core 迁 .pi→.av，
  * fallbacks 混入脏行以证「明确不消费」）；web seam 换 fake seam 验 provider 识别各分支。
  * 宿主概念（project/留档/证据行）已摘除——主题进、报告出，零文件 IO。
  */
@@ -93,9 +93,9 @@ function makeWs(): string {
 
 /** 工作区路由表 fixture（单主路由 + 脏 fallback 行，证「明确不消费」）。 */
 function seedRoutes(ws: string): void {
-  mkdirSync(join(ws, ".pi"), { recursive: true });
+  mkdirSync(join(ws, ".av"), { recursive: true });
   writeFileSync(
-    join(ws, ".pi", "model-router.json"),
+    join(ws, ".av", "model-router.json"),
     JSON.stringify({
       routes: {
         "content-writer.researcher": {
