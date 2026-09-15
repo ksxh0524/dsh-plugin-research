@@ -16,7 +16,7 @@
 
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { makeDshDispatch } from "aivideo-core/src/subagent/runner.ts";
-import { effectiveRoutes, readResearchConfig, resolveResearchWorkspace } from "./config.ts";
+import { defaultConfig, effectiveRoutes, resolveResearchWorkspace, type ResearchConfig } from "./config.ts";
 import { runResearch } from "./engine.ts";
 import type { HostContext, ToolExec } from "./lib/host.ts";
 
@@ -33,7 +33,13 @@ const dtool = defineTool as unknown as (def: {
 /** JSON 值域（dsh-util-values 非直接依赖，本地同构别名——写作包同款）。 */
 type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[];
 
-function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; routes?: unknown; ctx: HostContext }): unknown {
+function makeResearchTool(spec: {
+  configWorkspace?: string;
+  routeKey?: string;
+  routes?: unknown;
+  readConfig?: () => ResearchConfig;
+  ctx: HostContext;
+}): unknown {
   return dtool({
     name: "research",
     description:
@@ -73,10 +79,10 @@ function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; r
       }
       const dispatch = makeDshDispatch(spec.ctx, exec?.agent);
       if (!dispatch) return { verdict: "error", summary: "宿主无 subagents 派单通道：调研员会话无法建立", details: {} };
-      // UI 配置（.runtime/research/config.json）> patch 行 routes > 工作区路由键；审查员路由缺省 = 调研员同路由
+      // 插件卡配置（宿主 settings 段 research）> patch 行 routes > 工作区路由键；审查员路由缺省 = 调研员同路由
       let routes: unknown = spec.routes;
       let reviewRoutes: unknown = undefined;
-      const cfg = readResearchConfig(ws);
+      const cfg = spec.readConfig ? spec.readConfig() : defaultConfig();
       const eff = effectiveRoutes(cfg);
       if (eff.researcher) {
         routes = [eff.researcher];
@@ -92,7 +98,13 @@ function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; r
 }
 
 /** 注册面（tests 直接消费；ctx 换 fake）。 */
-export function createResearchTools(config?: { workspace?: string; routeKey?: string; routes?: unknown; ctx?: HostContext }): unknown[] {
+export function createResearchTools(config?: {
+  workspace?: string;
+  routeKey?: string;
+  routes?: unknown;
+  readConfig?: () => ResearchConfig;
+  ctx?: HostContext;
+}): unknown[] {
   const ctx = config?.ctx ?? {};
-  return [makeResearchTool({ configWorkspace: config?.workspace, routeKey: config?.routeKey, routes: config?.routes, ctx })];
+  return [makeResearchTool({ configWorkspace: config?.workspace, routeKey: config?.routeKey, routes: config?.routes, readConfig: config?.readConfig, ctx })];
 }

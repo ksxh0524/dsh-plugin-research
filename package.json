@@ -28,7 +28,8 @@
   },
   "dependencies": {
     "aivideo-core": "link:../aivideo-core",
-    "@deepseek-ai/dsh-tools": "0.1.5-rc.2"
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.2"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -46,7 +47,9 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.2.10",
     "prettier": "^3.8.4",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs,json,jsonc,md,yml,yaml,html}": "prettier --write"

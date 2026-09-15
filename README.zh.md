@@ -65,13 +65,13 @@ flowchart TD
 
 要点：**三道隔离工序互不可见会话**（只经引擎传冻结 JSON），**所有环节由引擎代码判定推进**，任何一道门不过 = error 收据，绝不给未复核的报告。
 
-## 设置页（模型 / 思考强度）
+## 插件配置（模型 / 思考强度）
 
-宿主「设置 → Research 调研」独立 section 页（浏览器半 `lib/client.js`）：
+宿主「设置 → 插件」分区里的 **research 配置卡**（官方插件设置正位：服务端 `settings.installSection("research")` + 浏览器半 `settings.plugin.item` 同 key 卡，缺一隐身）：
 
 - **默认一份配置**：模型（`provider/model` 二段式，留空 = 跟随工作区路由键）+ 思考强度（low/medium/high/xhigh，留空 = 跟随路由声明）——调研员与审查员两道隔离工序共用；
 - **高级：分开配**：勾选后拆出调研员（初稿+修订轮）与审查员两块，各自模型/思考强度，留空字段回落默认配置；
-- 配置落 `<ws>/.runtime/research/config.json`（版本门 `RESEARCH_CONFIG_VERSION=1`，版本不符存量作废回默认）；保存即对下一次 research 调用生效，无需重启 host。优先级：**UI 配置 > patch 行 routes > 工作区路由键**（审查员路由缺省 = 调研员同路由）。
+- 配置持久化归宿主 settings 系统（`~/.dsh/settings.yaml` 的 research 段，schemastery schema 校验，变更热推送）；保存即对下一次 research 调用生效，无需重启 host。优先级：**插件卡配置 > patch 行 routes > 工作区路由键**（审查员路由缺省 = 调研员同路由）。
 
 ## config
 

@@ -55,13 +55,19 @@ test("research execute：无可用搜索 provider → 收据 error（不派单�
 
 test("cordis default 形（官方插件协议）：name/inject 含 web/default.name 三处同源", () => {
   assert.equal(name, "dsh-plugin-research");
-  assert.deepEqual([...inject].sort(), ["reflect", "subagents", "tools", "web"], "inject 声明 tools/subagents/web + reflect（配置服务 Remote）");
+  assert.deepEqual(
+    [...inject].sort(),
+    ["reflect", "settings", "subagents", "tools", "web"],
+    "inject 声明 tools/subagents/web + reflect（Remote）+ settings（配置段安装面）",
+  );
   assert.equal((plugin as { name: string }).name, "dsh-plugin-research");
 });
 
-test("cordis apply：工具全注册进 ctx.tools.register；config 透传（routeKey/routes 进闭包）", () => {
+test("cordis apply：工具注册 + settings 段安装 + Remote 服务（插件卡两端半齐）", () => {
   const registered: Array<{ name: string }> = [];
   const provided: Record<string, unknown> = {};
+  let installed: { ns: string; schema: unknown; entry: unknown; hooks: { setSource: (s: () => unknown) => void } } | null = null;
+  let source: () => unknown = () => undefined;
   const ctx = {
     tools: { register: (t: { name: string }) => registered.push(t) },
     reflect: {
@@ -69,17 +75,35 @@ test("cordis apply：工具全注册进 ctx.tools.register；config 透传（rou
         provided[n] = s;
       },
     },
+    inject: (names: readonly string[], cb: (resolved: unknown) => void) => {
+      assert.deepEqual([...names], ["settings"]);
+      cb({
+        settings: {
+          installSection: (owner: unknown, ns: string, schema: unknown, entry: unknown, h: { setSource: (s: () => unknown) => void }) => {
+            installed = { ns, schema, entry, hooks: h };
+            h.setSource(() => ({ model: "cfg/primary", thinking: "medium", split: true, reviewModel: "rv/reviewer", reviewThinking: "low" }));
+          },
+        },
+      });
+    },
     subagents: { start: () => undefined },
     web: { searchProviders: new Map([["exa", { id: "exa", available: () => true }]]) },
     logger: { info: () => undefined, warn: () => undefined },
   };
-  apply(ctx as never, { workspace: "/Volumes/DATA/AI视频/自动剪辑", routeKey: "content-writer.researcher", routes: [{ provider: "p", model: "m" }] });
+  apply(ctx as never, { workspace: "/tmp/ws-x", routeKey: "content-writer.researcher", routes: [{ provider: "p", model: "m" }] });
   assert.deepEqual(
     registered.map((t) => t.name),
     ["research"],
   );
-  assert.ok(provided.research, "配置服务已 provide（research 命名空间，settings 页数据面）");
-  assert.equal((provided.research as { workspace?: string }).workspace, "/Volumes/DATA/AI视频/自动剪辑");
+  assert.ok(provided.research, "配置服务已 provide（research 命名空间，插件卡 Remote 数据面）");
+  assert.ok(installed, "settings 段已安装（served namespace，插件卡派发的服务端半）");
+  const section = installed as { ns: string; schema: unknown; hooks: { setSource: (s: () => unknown) => void } };
+  assert.equal(section.ns, "research");
+  assert.ok(
+    section.schema && (typeof section.schema === "function" || typeof section.schema === "object"),
+    "schema 为 schemastery schema（宿主按数据消费）——z.object() 返回可调用对象",
+  );
+  assert.ok(typeof section.hooks.setSource === "function", "setSource 回灌钩子就位（settings 变更热推送 → 工具即时生效）");
 });
 
 test("cordis apply：无 tools.register 的宿主（缺注册点）静默不炸（可选链收口）", () => {
@@ -95,15 +119,9 @@ test("resolveResearchWorkspace：config 优先；exec.agent 会话 cwd 兜底锚
   assert.ok(ws.length > 0, "锚探测回落 cwd 必有落点");
 });
 
-test("research execute：UI 配置拆分双路由（config > patch routes；配置文件落 .runtime/research）", async () => {
+test("research execute：插件卡配置拆分双路由（settings 段 > patch routes；readConfig live 闭包）", async () => {
   const ws = mkdtempSync(join(tmpdir(), "rsch-exec-"));
   try {
-    mkdirSync(join(ws, ".runtime", "research"), { recursive: true });
-    writeFileSync(
-      join(ws, ".runtime", "research", "config.json"),
-      JSON.stringify({ version: 1, model: "cfg/primary", thinking: "medium", split: true, reviewModel: "rv/reviewer", reviewThinking: "low" }),
-      "utf8",
-    );
     const starts: Array<{ agentOptions: { provider?: string; model?: string; reasoningEffort?: string }; label: string }> = [];
     const scripted = [DELIVERY, REVIEW_PASS];
     // 宿主注入对象桩（AGENTS 允许宽断言）：subagents.start 脚本化回据 + web seam 命中 exa。
@@ -117,11 +135,21 @@ test("research execute：UI 配置拆分双路由（config > patch routes；配�
       web: { searchProviders: new Map([["exa", { id: "exa", available: () => true }]]) },
       logger: { info: () => undefined },
     } as never;
-    const tools = createResearchTools({ workspace: ws, routes: [{ provider: "patch", model: "patch-route" }], ctx }) as unknown as ResearchTool[];
+    // readConfig = settings 段 live 闭包桩（apply() 里由 installSection setSource 回灌同形）。
+    const readConfig = () => ({
+      model: "cfg/primary",
+      thinking: "medium",
+      split: true,
+      researchModel: "",
+      researchThinking: "",
+      reviewModel: "rv/reviewer",
+      reviewThinking: "low",
+    });
+    const tools = createResearchTools({ workspace: ws, routes: [{ provider: "patch", model: "patch-route" }], readConfig, ctx }) as unknown as ResearchTool[];
     const out = await tools[0].execute({ topic: "可乐财报" }, { agent: { session: { meta: { cwd: ws } } } });
     assert.equal(out.verdict, "pass");
     assert.equal(starts.length, 2);
-    assert.equal(starts[0].agentOptions.provider, "cfg", "UI 配置研究员路由覆盖 patch 行 routes");
+    assert.equal(starts[0].agentOptions.provider, "cfg", "插件卡配置研究员路由覆盖 patch 行 routes");
     assert.equal(starts[0].agentOptions.model, "primary");
     assert.equal(starts[0].agentOptions.reasoningEffort, "medium");
     assert.equal(starts[1].agentOptions.provider, "rv", "拆分后工序②走审查员路由");
