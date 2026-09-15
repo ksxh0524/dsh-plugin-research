@@ -203,6 +203,57 @@ test("research：无 topic 无 project → fail-loud 不空跑", async () => {
   }
 });
 
+test("research：通用件无暗门——project + topic 而大纲缺失照常调研（缺省扫 best-effort，不炸）", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    mkdirSync(join(ws, "制作中", "大纲缺席", "底稿"), { recursive: true });
+    const calls: RunnerDispatchRequest[] = [];
+    const out = await runResearch(
+      { topic: "主题甲", project: "大纲缺席" },
+      deps(ws, fakeDispatch([() => ({ ok: true, output: "ok", structured: DELIVERY, stopReason: "completed" })], calls), undefined, seam([["exa", true]])),
+    );
+    assert.equal(out.verdict, "pass", "topic 在，大纲缺席只影响待查清单不影响主链");
+    assert.ok(!calls[0].task.includes("已知待查清单"));
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("research：project-only 且大纲缺失 → 主链统一 fail-loud（调研主题为空，非文件报错）", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    mkdirSync(join(ws, "制作中", "无大纲"), { recursive: true });
+    await assert.rejects(
+      () =>
+        runResearch(
+          { project: "无大纲" },
+          deps(ws, async () => ({ ok: false, output: "" })),
+        ),
+      /调研主题为空/u,
+    );
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("research：path 无 project → fail-loud（传了就得有效果）", async () => {
+  const ws = makeWs();
+  try {
+    await assert.rejects(
+      () =>
+        runResearch(
+          { topic: "t", path: "底稿/调研.md" },
+          deps(ws, async () => ({ ok: false, output: "" })),
+        ),
+      /path 参数仅在 project 模式生效/u,
+    );
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
 test("research：显式 source 不可读 → fail-loud 点名文件", async () => {
   const ws = makeWs();
   try {
