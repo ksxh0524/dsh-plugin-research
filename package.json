@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-research",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -8,11 +8,22 @@
   "main": "src/cordis.ts",
   "files": [
     "src",
-    "cordis.patch.yml"
+    "lib",
+    "tests",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md"
   ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
     }
   },
   "dependencies": {
@@ -39,5 +50,10 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs,json,jsonc,md,yml,yaml,html}": "prettier --write"
+  },
+  "exports": {
+    ".": "./src/cordis.ts",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
   }
 }

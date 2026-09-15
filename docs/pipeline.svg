@@ -51,7 +51,7 @@
   <!-- 路由 + 账本 -->
   <rect x="250" y="286" width="360" height="54" rx="8" fill="#eef2f7" stroke="#5b7290" stroke-width="1.5"/>
   <text x="430" y="308" text-anchor="middle" class="tt" font-size="14">路由解析（单路由 primary）</text>
-  <text x="430" y="328" text-anchor="middle" class="t">config.routes &gt; 工作区 routes 键，皆无 = throw</text>
+  <text x="430" y="328" text-anchor="middle" class="t">UI 配置 &gt; patch 行 &gt; 工作区路由键（可拆审/研），皆无 = throw</text>
   <line x1="430" y1="340" x2="430" y2="362" class="edge"/>
   <rect x="250" y="364" width="360" height="40" rx="8" fill="#eef2f7" stroke="#5b7290" stroke-width="1.5"/>
   <text x="430" y="390" text-anchor="middle" class="t">开账本信封（skill=researcher · tool=research）</text>

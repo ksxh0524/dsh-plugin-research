@@ -13,79 +13,10 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runResearch, resolvePrimaryRoute, buildResearchTask, buildReviewTask, buildFixTask, type ResearchDeps, type ResearchRequest } from "../src/engine.ts";
+import { DELIVERY, OK_REPORT, REVIEW_FIX, REVIEW_FIX_NO_ISSUES, REVIEW_PASS, REVIEW_PASS_WITH_ISSUES, REVIEW_ISSUES, SOURCES } from "./fixtures.ts";
 import type { ResearchDelivery, ReviewDelivery, ReviewIssue } from "../src/contract.ts";
 import type { RunnerDispatchRequest, RunnerDispatchResult, RunnerLedgerRecord } from "aivideo-core/src/subagent/runner.ts";
 import type { WebSeam } from "../src/web.ts";
-
-const OK_REPORT = [
-  "# 调研报告 — 可乐双雄 2025 财年（2026-09-15）",
-  "## 摘要",
-  "两条研究线均有着落：营收口径、财报发布时点均已确认，置信度高。",
-  "## 正文",
-  "研究线一（可口可乐财报）：FY2025 营收 470 亿美元 [SRC-1]；研究线二（百事财报）：FY2025 营收 920 亿美元〔单一来源〕 [SRC-2]。",
-  "## 矛盾与缺口",
-  "第三方研报全文未见公开版，缺口如实留待办。",
-  "## 方法与局限说明",
-  "检索预算限八次，数据以两家公司官网财报页为准。",
-  "## 待核实余项",
-  "- 第三方研报全文",
-  "## 来源清单",
-  "- [SRC-1] KO FY2025 Annual Report — https://investor.example.com/ko-2025（2026-02-15，investor.example.com）〔可靠性：官方一手〕",
-  "- [SRC-2] PE FY2025 10-K — https://investor.example.com/pe-2025（2026-02-10，investor.example.com）〔可靠性：权威媒体〕",
-].join("\n");
-
-const DELIVERY: ResearchDelivery = {
-  case_id: "c",
-  status: "completed",
-  report_markdown: OK_REPORT,
-  facts: [
-    {
-      assertion: "可口可乐 2025 财年营收 470 亿美元",
-      url: "https://investor.example.com/ko-2025",
-      date: "2026-02-15",
-      domain: "investor.example.com",
-      title: "KO FY2025",
-      reliability: "官方一手",
-      corroboration: ["SRC-2"],
-    },
-    {
-      assertion: "百事 2025 财年营收 920 亿美元",
-      url: "https://investor.example.com/pe-2025",
-      date: "2026-02-10",
-      domain: "investor.example.com",
-      reliability: "权威媒体",
-    },
-  ],
-  open_questions: ["第三方研报全文未见公开版"],
-};
-
-const SOURCES = [
-  {
-    src: "SRC-1",
-    title: "KO FY2025 Annual Report",
-    url: "https://investor.example.com/ko-2025",
-    date: "2026-02-15",
-    domain: "investor.example.com",
-    reliability: "官方一手",
-    content: "年报正文：FY2025 营收 470 亿美元，同比 +3%。".repeat(8),
-  },
-  {
-    src: "SRC-2",
-    title: "PE FY2025 10-K",
-    url: "https://investor.example.com/pe-2025",
-    date: "2026-02-10",
-    domain: "investor.example.com",
-    reliability: "权威媒体",
-  },
-];
-
-const REVIEW_PASS: ReviewDelivery = { case_id: "c", verdict: "pass", issues: [], report_markdown: OK_REPORT };
-const REVIEW_ISSUES: ReviewIssue[] = [
-  { point: "PE 营收 920 亿美元（SRC-2）", problem: "单一来源且页面打不开，佐证不足", fix_hint: "补查 PE 官网 10-K 或权威媒体二手引用，死链换源" },
-];
-const REVIEW_FIX: ReviewDelivery = { case_id: "c", verdict: "fix", issues: REVIEW_ISSUES, report_markdown: "" };
-const REVIEW_FIX_NO_ISSUES: ReviewDelivery = { case_id: "c", verdict: "fix", issues: [], report_markdown: "" };
-const REVIEW_PASS_WITH_ISSUES: ReviewDelivery = { case_id: "c", verdict: "pass", issues: REVIEW_ISSUES, report_markdown: OK_REPORT };
 
 function makeWs(): string {
   return mkdtempSync(join(tmpdir(), "dsh-research-"));
@@ -533,4 +464,48 @@ test("任务书单元：三工序任务书形态（draft 自判/打标；review 
   });
   assert.ok(fixFetch.includes("审查员已拉的来源全文"));
   assert.ok(fixFetch.includes('"sources":['));
+});
+
+test("reviewRoutes：审查员路由只进工序②（初稿/修订轮仍用调研员路由——UI「分开配」口径）", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    const calls: RunnerDispatchRequest[] = [];
+    const out = await runResearch(
+      {
+        topic: "可乐财报",
+        routes: [{ provider: "res", model: "draft-model", thinkingLevel: "medium" }],
+        reviewRoutes: [{ provider: "rev", model: "review-model", thinkingLevel: "low" }],
+      },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_FIX), () => okStep()], calls), undefined, seam([["exa", true]])),
+    );
+    assert.equal(out.verdict, "pass");
+    assert.equal(calls.length, 3);
+    assert.equal(calls[0].provider, "res");
+    assert.equal(calls[0].model, "draft-model");
+    assert.equal(calls[1].provider, "rev", "工序②用审查员路由");
+    assert.equal(calls[1].model, "review-model");
+    assert.equal(calls[1].thinkingLevel, "low");
+    assert.equal(calls[2].provider, "res", "修订轮（工序③）仍用调研员路由");
+    assert.equal(calls[2].model, "draft-model");
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("reviewRoutes 缺省：工序②与调研员同路由（默认共用一份配置的口径）", async () => {
+  const ws = makeWs();
+  try {
+    seedRoutes(ws);
+    const calls: RunnerDispatchRequest[] = [];
+    await runResearch(
+      { topic: "可乐财报", routes: [{ provider: "res", model: "shared-model", thinkingLevel: "high" }] },
+      deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_PASS)], calls), undefined, seam([["exa", true]])),
+    );
+    assert.equal(calls[1].provider, "res", "未拆分 = 审查员跟随调研员路由");
+    assert.equal(calls[1].model, "shared-model");
+    assert.equal(calls[1].thinkingLevel, "high");
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
 });

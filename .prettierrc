@@ -4,5 +4,14 @@
   "singleQuote": false,
   "trailingComma": "all",
   "arrowParens": "always",
-  "endOfLine": "lf"
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "lib/**/*.js",
+      "options": {
+        "useTabs": true,
+        "tabWidth": 2
+      }
+    }
+  ]
 }

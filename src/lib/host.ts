@@ -5,6 +5,8 @@ import type { WebSeam } from "../web.ts";
 export interface HostContext {
   tools?: { register(tool: unknown): unknown; get?(name: string): unknown };
   inject?(names: readonly string[], cb: (c: unknown) => void): void;
+  /** cordis reflect 面（配置服务 ctx.reflect.provide 注册 Remote；官方 cordis ctx 能力，窄脸收口）。 */
+  reflect?: { provide(name: string, instance: unknown): unknown };
   subagents?: {
     start(provider: string, request: unknown): Promise<{ result: Promise<unknown> }>;
   };

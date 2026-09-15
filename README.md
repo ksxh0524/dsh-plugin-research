@@ -65,13 +65,21 @@ flowchart TD
 
 Key property: the three stages are **mutually blind sessions** (only frozen JSON crosses between them via the engine), **every transition is decided by engine code**, and any gate failure = error receipt — an unreviewed report is never delivered.
 
+## Settings page (model / thinking intensity)
+
+A dedicated section page under host "Settings → Research 调研" (browser half in `lib/client.js`):
+
+- **One shared config by default**: model (`provider/model`; empty = follow the workspace routes key) + thinking intensity (low/medium/high/xhigh; empty = follow the route declaration) — shared by the Researcher and Reviewer isolated stages;
+- **Advanced: split**: tick to split into Researcher (draft + revision round) and Reviewer blocks, each with its own model/thinking; empty fields fall back to the shared default;
+- Config persists at `<ws>/.runtime/research/config.json` (version gate `RESEARCH_CONFIG_VERSION=1`; mismatched-version snapshots are voided). Saved values apply to the next research call — no host restart needed. Precedence: **UI config > patch-row routes > workspace routes key** (reviewer route defaults to the researcher route).
+
 ## Config
 
-| key         | Description                                                                      |
-| ----------- | -------------------------------------------------------------------------------- |
-| `workspace` | Workspace root; default = session cwd probing (route resolution only)            |
-| `routeKey`  | Workspace routes key (default `content-writer.researcher`)                       |
-| `routes`    | Explicit primary route (`[{provider, model, thinkingLevel?}]`, first entry only) |
+| key         | Description                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------- |
+| `workspace` | Workspace root; default = session cwd probing (route resolution only)                                         |
+| `routeKey`  | Workspace routes key (default `content-writer.researcher`)                                                    |
+| `routes`    | Explicit primary route (`[{provider, model, thinkingLevel?}]`, first entry only; overridden by the UI config) |
 
 ## Install
 

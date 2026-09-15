@@ -5,7 +5,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { name, inject, default as plugin, apply } from "../src/cordis.ts";
-import { createResearchTools, resolveResearchWorkspace } from "../src/tools.ts";
+import { resolveResearchWorkspace } from "../src/config.ts";
+import { createResearchTools } from "../src/tools.ts";
+import { DELIVERY, REVIEW_PASS } from "./fixtures.ts";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ToolExec } from "../src/lib/host.ts";
 
 type ResearchTool = {
@@ -50,14 +55,20 @@ test("research execute：无可用搜索 provider → 收据 error（不派单�
 
 test("cordis default 形（官方插件协议）：name/inject 含 web/default.name 三处同源", () => {
   assert.equal(name, "dsh-plugin-research");
-  assert.deepEqual([...inject].sort(), ["subagents", "tools", "web"], "inject 声明 tools/subagents/web（web seam 供 provider 识别）");
+  assert.deepEqual([...inject].sort(), ["reflect", "subagents", "tools", "web"], "inject 声明 tools/subagents/web + reflect（配置服务 Remote）");
   assert.equal((plugin as { name: string }).name, "dsh-plugin-research");
 });
 
 test("cordis apply：工具全注册进 ctx.tools.register；config 透传（routeKey/routes 进闭包）", () => {
   const registered: Array<{ name: string }> = [];
+  const provided: Record<string, unknown> = {};
   const ctx = {
     tools: { register: (t: { name: string }) => registered.push(t) },
+    reflect: {
+      provide: (n: string, s: unknown) => {
+        provided[n] = s;
+      },
+    },
     subagents: { start: () => undefined },
     web: { searchProviders: new Map([["exa", { id: "exa", available: () => true }]]) },
     logger: { info: () => undefined, warn: () => undefined },
@@ -67,6 +78,8 @@ test("cordis apply：工具全注册进 ctx.tools.register；config 透传（rou
     registered.map((t) => t.name),
     ["research"],
   );
+  assert.ok(provided.research, "配置服务已 provide（research 命名空间，settings 页数据面）");
+  assert.equal((provided.research as { workspace?: string }).workspace, "/Volumes/DATA/AI视频/自动剪辑");
 });
 
 test("cordis apply：无 tools.register 的宿主（缺注册点）静默不炸（可选链收口）", () => {
@@ -80,4 +93,41 @@ test("resolveResearchWorkspace：config 优先；exec.agent 会话 cwd 兜底锚
   const exec = { agent: { session: { meta: { cwd } } } } as unknown as ToolExec;
   const ws = resolveResearchWorkspace(exec);
   assert.ok(ws.length > 0, "锚探测回落 cwd 必有落点");
+});
+
+test("research execute：UI 配置拆分双路由（config > patch routes；配置文件落 .runtime/research）", async () => {
+  const ws = mkdtempSync(join(tmpdir(), "rsch-exec-"));
+  try {
+    mkdirSync(join(ws, ".runtime", "research"), { recursive: true });
+    writeFileSync(
+      join(ws, ".runtime", "research", "config.json"),
+      JSON.stringify({ version: 1, model: "cfg/primary", thinking: "medium", split: true, reviewModel: "rv/reviewer", reviewThinking: "low" }),
+      "utf8",
+    );
+    const starts: Array<{ agentOptions: { provider?: string; model?: string; reasoningEffort?: string }; label: string }> = [];
+    const scripted = [DELIVERY, REVIEW_PASS];
+    // 宿主注入对象桩（AGENTS 允许宽断言）：subagents.start 脚本化回据 + web seam 命中 exa。
+    const ctx = {
+      subagents: {
+        start: (_kind: string, request: { agentOptions: { provider?: string; model?: string; reasoningEffort?: string }; label: string }) => {
+          starts.push(request);
+          return { result: Promise.resolve({ stopReason: "completed", structured: scripted[starts.length - 1] ?? null }) };
+        },
+      },
+      web: { searchProviders: new Map([["exa", { id: "exa", available: () => true }]]) },
+      logger: { info: () => undefined },
+    } as never;
+    const tools = createResearchTools({ workspace: ws, routes: [{ provider: "patch", model: "patch-route" }], ctx }) as unknown as ResearchTool[];
+    const out = await tools[0].execute({ topic: "可乐财报" }, { agent: { session: { meta: { cwd: ws } } } });
+    assert.equal(out.verdict, "pass");
+    assert.equal(starts.length, 2);
+    assert.equal(starts[0].agentOptions.provider, "cfg", "UI 配置研究员路由覆盖 patch 行 routes");
+    assert.equal(starts[0].agentOptions.model, "primary");
+    assert.equal(starts[0].agentOptions.reasoningEffort, "medium");
+    assert.equal(starts[1].agentOptions.provider, "rv", "拆分后工序②走审查员路由");
+    assert.equal(starts[1].agentOptions.model, "reviewer");
+    assert.equal(starts[1].agentOptions.reasoningEffort, "low");
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
 });

@@ -65,13 +65,21 @@ flowchart TD
 
 要点：**三道隔离工序互不可见会话**（只经引擎传冻结 JSON），**所有环节由引擎代码判定推进**，任何一道门不过 = error 收据，绝不给未复核的报告。
 
+## 设置页（模型 / 思考强度）
+
+宿主「设置 → Research 调研」独立 section 页（浏览器半 `lib/client.js`）：
+
+- **默认一份配置**：模型（`provider/model` 二段式，留空 = 跟随工作区路由键）+ 思考强度（low/medium/high/xhigh，留空 = 跟随路由声明）——调研员与审查员两道隔离工序共用；
+- **高级：分开配**：勾选后拆出调研员（初稿+修订轮）与审查员两块，各自模型/思考强度，留空字段回落默认配置；
+- 配置落 `<ws>/.runtime/research/config.json`（版本门 `RESEARCH_CONFIG_VERSION=1`，版本不符存量作废回默认）；保存即对下一次 research 调用生效，无需重启 host。优先级：**UI 配置 > patch 行 routes > 工作区路由键**（审查员路由缺省 = 调研员同路由）。
+
 ## config
 
-| key         | 说明                                                            |
-| ----------- | --------------------------------------------------------------- |
-| `workspace` | 工作区根；缺省 = 会话 cwd 探测（仅供路由解析）                  |
-| `routeKey`  | 工作区 routes 键（缺省 `content-writer.researcher`）            |
-| `routes`    | 显式主路由（`[{provider, model, thinkingLevel?}]`，只取第一条） |
+| key         | 说明                                                                            |
+| ----------- | ------------------------------------------------------------------------------- |
+| `workspace` | 工作区根；缺省 = 会话 cwd 探测（仅供路由解析）                                  |
+| `routeKey`  | 工作区 routes 键（缺省 `content-writer.researcher`）                            |
+| `routes`    | 显式主路由（`[{provider, model, thinkingLevel?}]`，只取第一条；被 UI 配置覆盖） |
 
 ## 挂载
 

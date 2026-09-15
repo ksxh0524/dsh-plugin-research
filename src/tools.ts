@@ -15,8 +15,8 @@
  */
 
 import { defineTool } from "@deepseek-ai/dsh-tools";
-import { findAutomationWorkspace } from "aivideo-core/src/project/index.ts";
 import { makeDshDispatch } from "aivideo-core/src/subagent/runner.ts";
+import { effectiveRoutes, readResearchConfig, resolveResearchWorkspace } from "./config.ts";
 import { runResearch } from "./engine.ts";
 import type { HostContext, ToolExec } from "./lib/host.ts";
 
@@ -29,20 +29,6 @@ const dtool = defineTool as unknown as (def: {
   output: { schema: Record<string, unknown>; render?: (args: unknown, value: unknown) => Array<{ type: string; text: string }> };
   execute: (args: unknown, exec: unknown) => Promise<unknown>;
 }) => unknown;
-
-/** 工具落点工作区：config.workspace 优先；cwd 向上锚探测兜底（锚找不到不炸——插件的
- * 会话 cwd 不必然在锚下，回落会话 cwd 本身），再兜进程 cwd。仅用于路由解析，不是调用参数。 */
-export function resolveResearchWorkspace(exec: ToolExec | undefined, configWorkspace?: string): string {
-  if (configWorkspace) return configWorkspace;
-  const cwd = String(exec?.agent?.session?.meta?.cwd ?? exec?.agent?.session?.header?.cwd ?? process.cwd());
-  try {
-    const anchored = findAutomationWorkspace(cwd);
-    if (anchored) return anchored;
-  } catch {
-    /* 无锚：回落 cwd 本身 */
-  }
-  return cwd;
-}
 
 /** JSON 值域（dsh-util-values 非直接依赖，本地同构别名——写作包同款）。 */
 type JsonValue = string | number | boolean | null | { [k: string]: JsonValue } | JsonValue[];
@@ -87,8 +73,17 @@ function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; r
       }
       const dispatch = makeDshDispatch(spec.ctx, exec?.agent);
       if (!dispatch) return { verdict: "error", summary: "宿主无 subagents 派单通道：调研员会话无法建立", details: {} };
+      // UI 配置（.runtime/research/config.json）> patch 行 routes > 工作区路由键；审查员路由缺省 = 调研员同路由
+      let routes: unknown = spec.routes;
+      let reviewRoutes: unknown = undefined;
+      const cfg = readResearchConfig(ws);
+      const eff = effectiveRoutes(cfg);
+      if (eff.researcher) {
+        routes = [eff.researcher];
+        reviewRoutes = eff.reviewer ? [eff.reviewer] : undefined;
+      }
       const out = await runResearch(
-        { topic: args?.topic, fetchSources: args?.fetch_sources, routes: spec.routes, routeKey: spec.routeKey },
+        { topic: args?.topic, fetchSources: args?.fetch_sources, routes, reviewRoutes, routeKey: spec.routeKey },
         { ws, dispatch, web: spec.ctx?.web, say, signal: exec?.signal, agent: exec?.agent },
       );
       return { summary: out.text, verdict: out.verdict, details: { ...out.details, report: out.report, source_appendix: out.appendix } };

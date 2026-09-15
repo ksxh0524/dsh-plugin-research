@@ -247,7 +247,10 @@ export type ResearchRequest = {
   strands?: string[];
   /** 拉取来源全文（可选层，缺省 false；审查员/修订轮拉全文随报告附回）。 */
   fetchSources?: unknown;
+  /** 调研员路由（工序①③；显式 > 工作区路由键）。 */
   routes?: unknown;
+  /** 审查员路由（工序②专用；缺省 = 与调研员同路由——UI「高级：分开配」才给）。 */
+  reviewRoutes?: unknown;
   routeKey?: unknown;
   caseId?: unknown;
   watchdogMs?: unknown;
@@ -274,7 +277,7 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
     };
   }
   say?.(`[research] 搜索 provider：${providerInfo.effective}`);
-  // ③ 路由（单条，fallback 明确不消费；三工序共用同一路由）
+  // ③ 路由（单路由口径；调研员/审查员可分开配——UI「高级」拆分时工序②用审查员路由）
   const route = resolvePrimaryRoute(deps.ws, {
     routes: req.routes,
     routeKey: typeof req.routeKey === "string" ? req.routeKey : undefined,
@@ -282,7 +285,21 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
   const routeSpec: RouteSpec = route.thinkingLevel
     ? { provider: route.provider, model: route.model, thinkingLevel: route.thinkingLevel }
     : { provider: route.provider, model: route.model };
-  say?.(`[research] 路由 ${route.provider}/${route.model}（单路由口径）`);
+  const reviewExplicit = Array.isArray(req.reviewRoutes) ? (req.reviewRoutes[0] as Record<string, unknown> | undefined) : undefined;
+  let reviewSpec: RouteSpec = routeSpec;
+  if (
+    reviewExplicit &&
+    typeof reviewExplicit.provider === "string" &&
+    typeof reviewExplicit.model === "string" &&
+    reviewExplicit.provider.trim() &&
+    reviewExplicit.model.trim()
+  ) {
+    const rt = typeof reviewExplicit.thinkingLevel === "string" ? reviewExplicit.thinkingLevel.trim() : "";
+    reviewSpec = { provider: reviewExplicit.provider.trim(), model: reviewExplicit.model.trim(), ...(rt ? { thinkingLevel: rt } : {}) };
+  }
+  say?.(
+    `[research] 路由 ${route.provider}/${route.model}（单路由口径${reviewSpec === routeSpec ? "" : `；审查员 ${reviewSpec.provider}/${reviewSpec.model}`}）`,
+  );
   // ④ caseId + 账本信封（三工序共用同一信封，attempt 记录自然分笔）
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/gu, "");
   const caseId = String(req.caseId ?? "").trim() || `research-${stamp}`;
@@ -347,6 +364,7 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
     say?.("[research] 工序2/审查员亲核来源并出具 issue 清单");
     const review = await runSubagentTask({
       ...baseDispatch,
+      routes: [reviewSpec],
       outputSchema: REVIEW_DELIVERY_SCHEMA,
       label: `research:${topic.slice(0, 40)}#review`,
       task: buildReviewTask({ caseId, topic, draft: draftDelivery, providerId: providerInfo.effective, fetchSources }),
