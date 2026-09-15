@@ -1,5 +1,6 @@
 /** host.ts —— 宿主边界窄接口（结构化类型，不依赖 dsh 内部类；与写作包 host.ts 同形）。 */
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
+import type { WebSeam } from "../web.ts";
 
 export interface HostContext {
   tools?: { register(tool: unknown): unknown; get?(name: string): unknown };
@@ -7,6 +8,8 @@ export interface HostContext {
   subagents?: {
     start(provider: string, request: unknown): Promise<{ result: Promise<unknown> }>;
   };
+  /** web seam（dsh-tool-web 持有 web_search/web_fetch；搜索 provider 注册面，窄脸见 web.ts）。 */
+  web?: WebSeam;
   logger?: { info?(message: string): void; warn?(message: string): void };
 }
 

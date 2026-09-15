@@ -8,42 +8,53 @@ import { name, inject, default as plugin, apply } from "../src/cordis.ts";
 import { createResearchTools, resolveResearchWorkspace } from "../src/tools.ts";
 import type { ToolExec } from "../src/lib/host.ts";
 
-test("createResearchTools：单工具名册（research_build；退役 researcher 线不再有独立工具面）", () => {
+test("createResearchTools：单工具名册（research；通用主题式入口，无 build 后缀）", () => {
   const tools = createResearchTools({ workspace: "/tmp/x", ctx: {} }) as Array<{ name: string }>;
   assert.deepEqual(
     tools.map((t) => t.name),
-    ["research_build"],
+    ["research"],
   );
 });
 
-test("research_build execute：宿主无 subagents 通道 → 收据 error 不抛（fail 保全，非 throw）", async () => {
+test("research execute：宿主无 subagents 通道 → 收据 error 不抛（fail 保全，非 throw）", async () => {
   const tools = createResearchTools({ workspace: "/tmp/x", ctx: {} }) as Array<{
     name: string;
     execute(args: Record<string, unknown>, exec: unknown): Promise<{ verdict: string; summary: string }>;
   }>;
-  const out = await tools[0].execute({ project: "甲", questions: ["q"] }, undefined);
+  const out = await tools[0].execute({ topic: "主题甲" }, undefined);
   assert.equal(out.verdict, "error");
   assert.match(out.summary, /派单通道/u);
 });
 
-test("cordis default 形（官方插件协议）：name/inject/default.name 三处同源", () => {
+test("research execute：无可用搜索 provider → 收据 error（不派单，fail 保全）", async () => {
+  const tools = createResearchTools({
+    workspace: "/tmp/x",
+    // 宿主注入对象桩（AGENTS 允许宽断言）：subagents 通在、web seam 空。
+    ctx: { subagents: { start: () => undefined }, web: { searchProviders: new Map() } } as never,
+  }) as Array<{ name: string; execute(args: Record<string, unknown>, exec: unknown): Promise<{ verdict: string; summary: string }> }>;
+  const out = await tools[0].execute({ topic: "主题甲" }, { agent: { session: { meta: { cwd: "/tmp" } } } });
+  assert.equal(out.verdict, "error");
+  assert.match(out.summary, /provider 不可用/u);
+});
+
+test("cordis default 形（官方插件协议）：name/inject 含 web/default.name 三处同源", () => {
   assert.equal(name, "dsh-plugin-research");
-  assert.deepEqual([...inject].sort(), ["subagents", "tools"]);
+  assert.deepEqual([...inject].sort(), ["subagents", "tools", "web"], "inject 声明 tools/subagents/web（web seam 供 provider 识别）");
   assert.equal((plugin as { name: string }).name, "dsh-plugin-research");
 });
 
 test("cordis apply：工具全注册进 ctx.tools.register；config 透传（routeKey/routes 进闭包）", () => {
   const registered: Array<{ name: string }> = [];
-  // 宿主注入对象桩（AGENTS 允许）：register 只收名册。
   const ctx = {
     tools: { register: (t: { name: string }) => registered.push(t) },
     subagents: { start: () => undefined },
+    web: { searchProviders: new Map([["exa", { id: "exa", available: () => true }]]) },
     logger: { info: () => undefined, warn: () => undefined },
   };
   apply(ctx as never, { workspace: "/Volumes/DATA/AI视频/自动剪辑", routeKey: "content-writer.researcher", routes: [{ provider: "p", model: "m" }] });
   assert.deepEqual(
     registered.map((t) => t.name),
-    ["research_build"],
+    ["research"],
   );
 });
 

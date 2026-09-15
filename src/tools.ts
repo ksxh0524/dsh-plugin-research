@@ -1,18 +1,22 @@
-/** tools.ts —— dsh-plugin-research DSH 工具面（注册形与写作包同构；跨域调研唯一入口 research_build）。
+/** tools.ts —— dsh-plugin-research DSH 工具面（通用主题式调研，唯一入口 research）。
  *
  * 注册面（cordis apply 一次性 register，行名=包名三处同步）：
- * - research_build：问题清单（显式 questions ∪ 源文档 **待核实** 提取）→ 隔离写手子会话做
- *   web 调研（web_search/web_fetch）→ 内容门 → 留档 <项目>/底稿/调研.md（append）→ 收据；
- * - 派单 = makeDshDispatch 裸接线（**单路由口径** 2026-09-15 用户拍板：fallback 暂不写；调研频次低，
+ * - research：给主题（如「收集 2025 财年可口可乐与百事的全部财报与研报」），隔离写手子会话
+ *   自主分解研究线 → web_search/web_fetch 定向查证 → 自检补漏 → 合成带来源完整报告 →
+ *   收据回全文；project 可选（给了就留档 底稿/调研.md，证据行合同兼容 outline 引用门；
+ *   无 topic 时自动扫大纲 **待核实** 条目当研究线）；
+ * - 搜索 provider 识别 = 宿主 web seam（配 exa/deepseek 哪个用哪个；无可用 provider 提前拒，
+ *   不派注定失败的写手）；
+ * - 派单 = makeDshDispatch 裸接线（**单路由口径** 2026-09-15：fallback 暂不写；调研频次低，
  *   限流/熔断包装 v1 不接——写作簇 makeRatelimitedDispatch 同位，将来接则在此处包一层）；
- * - 无读门无围栏：写手任务书自带问题全文，子会话不需要项目读权（v1 不 toolFilter；
- *   R2 若收围栏，须先实测 web 工具的运行时 id 名册再 allow，防错名静默断检）。
+ * - 无读门无围栏：任务书自带主题与守则，子会话不需要项目读权（v1 不 toolFilter；
+ *   收围栏前须先实测 web 工具运行时 id 名册，防错名静默断检）。
  */
 
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { findAutomationWorkspace } from "aivideo-core/src/project/index.ts";
 import { makeDshDispatch } from "aivideo-core/src/subagent/runner.ts";
-import { runResearchBuild } from "./engine.ts";
+import { runResearch } from "./engine.ts";
 import type { HostContext, ToolExec } from "./lib/host.ts";
 
 /** 工具 defineTool 桥面：参数为 rootless properties 简写（DSH 运行时接受，dsh-tools 面为
@@ -25,8 +29,8 @@ const dtool = defineTool as unknown as (def: {
   execute: (args: unknown, exec: unknown) => Promise<unknown>;
 }) => unknown;
 
-/** 工具落点工作区：config.workspace 优先；cwd 向上锚探测兜底（锚找不到不炸——跨域插件
- * 的会话 cwd 不必然在自动剪辑锚下，回落会话 cwd 本身），再兜进程 cwd。 */
+/** 工具落点工作区：config.workspace 优先；cwd 向上锚探测兜底（锚找不到不炸——跨域插件的
+ * 会话 cwd 不必然在自动剪辑锚下，回落会话 cwd 本身），再兜进程 cwd。 */
 export function resolveResearchWorkspace(exec: ToolExec | undefined, configWorkspace?: string): string {
   if (configWorkspace) return configWorkspace;
   const cwd = String(exec?.agent?.session?.meta?.cwd ?? exec?.agent?.session?.header?.cwd ?? process.cwd());
@@ -45,19 +49,14 @@ type BuildOutput = { verdict: string; text: string; details: Record<string, Json
 
 function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; routes?: unknown; ctx: HostContext }): unknown {
   return dtool({
-    name: "research_build",
+    name: "research",
     description:
-      "跨域调研（唯一入口）：给问题清单（questions 显式传，或从源文档 **待核实** 条目提取，缺省扫 底稿/大纲.md）→ 隔离写手子会话用 web_search/web_fetch 定向查证 → 证据行留档进 底稿/调研.md（append，日期小节隔离）。单路由口径：fallback 未启用。查不到的如实进待核实余项，不编造。",
+      "通用主题式深度调研（deep-research 型，唯一入口）：给一个主题（如「收集 2025 财年可口可乐与百事的全部财报与研报」），隔离写手子会话自主分解研究线 → web_search/web_fetch 定向查证 → 自检补漏 → 合成带来源的完整调研报告（内联 [SRC-n] + 编号来源清单）交回调用方。注意：这是深度调研工具，不是轻量单查——单点小问题直接 web_search 即可，别占这里。可选 project（裸项目名或「制作中/<项目名>」）：给了就把报告与证据行留档进 <项目>/底稿/调研.md（证据行兼容 outline 引用覆盖门），且无 topic 时自动扫大纲 **待核实** 条目当研究线。搜索 provider 读宿主 web seam 配置（exa/deepseek，配谁用谁）。单路由口径：fallback 未启用。",
     parameters: {
-      project: { type: "string", required: true, description: "项目（裸项目名或「制作中/<项目名>」，裸名自动定位）" },
-      questions: {
-        type: "array",
-        items: { type: "string" },
-        description: "显式问题清单（与源文档待核实条目合并去重；两者皆空则 fail-loud 不空跑）",
-      },
-      source: { type: "string", description: "源文档项目相对路径（从中提取 **待核实** 条目；缺省 底稿/大纲.md，显式给定则不可读直接报错）" },
-      path: { type: "string", description: "证据落点项目相对路径（缺省 底稿/调研.md；append 追加日期小节）" },
-      label: { type: "string", description: "调研主题（留档小节标题，缺省「定向调研」）" },
+      topic: { type: "string", description: "调研主题（一句话；带项目且不传时自动扫 底稿/大纲.md 的 **待核实** 条目）" },
+      project: { type: "string", description: "项目（可选；裸项目名或「制作中/<项目名>」。给了就留档 底稿/调研.md，不给则纯返回报告" },
+      path: { type: "string", description: "证据落点项目相对路径（缺省 底稿/调研.md；仅 project 模式生效）" },
+      label: { type: "string", description: "调研主题标签（缺省取主题前 40 字）" },
     },
     output: {
       schema: {
@@ -69,7 +68,13 @@ function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; r
           details: { type: "object", additionalProperties: true },
         },
       },
-      render: (_args: unknown, value: unknown) => [{ type: "text", text: String((value as { summary?: string })?.summary ?? "") }],
+      render: (_args: unknown, value: unknown): Array<{ type: string; text: string }> => {
+        const v = value as { summary?: string; details?: { report?: string } };
+        const blocks = [{ type: "text", text: String(v?.summary ?? "") }];
+        const report = String(v?.details?.report ?? "");
+        if (report) blocks.push({ type: "text", text: report });
+        return blocks;
+      },
     },
     async execute(rawArgs, rawExec) {
       const args = rawArgs as Record<string, unknown>;
@@ -82,19 +87,18 @@ function makeResearchTool(spec: { configWorkspace?: string; routeKey?: string; r
       }
       const dispatch = makeDshDispatch(spec.ctx, exec?.agent);
       if (!dispatch) return { verdict: "error", summary: "宿主无 subagents 派单通道：调研写手会话无法建立", details: {} };
-      const out = await runResearchBuild(
+      const out = await runResearch(
         {
-          project: String(args?.project || ""),
-          questions: args?.questions,
-          source: args?.source,
+          topic: args?.topic,
+          project: args?.project,
           path: args?.path,
           label: args?.label,
           routes: spec.routes,
           routeKey: spec.routeKey,
         },
-        { ws, dispatch, say, signal: exec?.signal, agent: exec?.agent },
+        { ws, dispatch, web: spec.ctx?.web, say, signal: exec?.signal, agent: exec?.agent },
       );
-      return { summary: out.text, verdict: out.verdict, details: out.details };
+      return { summary: out.text, verdict: out.verdict, details: { ...out.details, report: out.report } };
     },
   });
 }
