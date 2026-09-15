@@ -17,6 +17,9 @@ importers:
       aivideo-core:
         specifier: link:../aivideo-core
         version: link:../aivideo-core
+      dsh-check:
+        specifier: link:../dsh-check
+        version: link:../dsh-check
     devDependencies:
       '@commitlint/cli':
         specifier: ^21.0.2
