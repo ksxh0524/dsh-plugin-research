@@ -1,25 +1,18 @@
-/** engine.ts —— research 编排 v2（通用主题式）：主题 → 子代理自分解研究线 → 检索取证 → 自检补漏 → 合成报告。
+/** engine.ts —— research 编排 v3（纯通用）：主题 → 子代理自分解研究线 → 检索取证 → 自检补漏 → 合成报告。
  *
- * 借鉴 open_deep_research / gpt-researcher 的骨架，收进单子代理四段流程（规划→检索→自检→合成），
- * 交付 = 完整 report_markdown（内联 [SRC-n] + 编号来源清单）+ facts[] 原子事实。
+ * 形态对齐通用 deep research 实证（gpt-researcher / open_deep_research）：**主题进、报告出**，
+ * 调用方不传任何宿主概念（无 project/落盘/证据行——留档是调用方自己的事，本编排零文件 IO）；
+ * facts[] 原子作为元数据随收据回调用方（对应 get_research_sources() 形）。
  * **单路由口径**（2026-09-15 拍板：fallback 暂不写——routes 只取 primary，失败如实透出不备路）。
- * 写手不落盘：project 模式的留档由本编排执行（收据驱动单一写者，子会话无需写权）。
  * 账本：openSession/finishSession 信封（skill=researcher，tool=research，fail-open）。
  */
 
-import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { basename, dirname, join, relative } from "node:path";
 import { performance } from "node:perf_hooks";
 import { runSubagentTask, type RouteSpec, type RunToLedger, type SubagentDispatch } from "aivideo-core/src/subagent/runner.ts";
 import { getTaskSpecSync } from "aivideo-core/src/router/index.ts";
-import { resolveProject, type ResolvedProject } from "aivideo-core/src/project/index.ts";
 import { finishSession, openSession, type SessionHandle } from "aivideo-core/src/ledger/session-ledger.ts";
-import { RESEARCH_DELIVERY_SCHEMA, extractPendingItems, renderResearchSection, validateDelivery, type ResearchDelivery } from "./contract.ts";
+import { RESEARCH_DELIVERY_SCHEMA, validateDelivery, type ResearchDelivery } from "./contract.ts";
 import { detectSearchProvider, type WebSeam } from "./web.ts";
-
-/** 证据落点/源文档的项目相对缺省（写作链同款约定）。 */
-export const DEFAULT_EVIDENCE_PATH = "底稿/调研.md";
-export const DEFAULT_SOURCE = "底稿/大纲.md";
 
 /** 单路由输入（provider/model 二段式；thinkingLevel 可选）。 */
 export type RouteInput = { provider: string; model: string; thinkingLevel?: string };
@@ -70,46 +63,15 @@ export function resolvePrimaryRoute(ws: string, opts: { routes?: unknown; routeK
   throw new Error(`research 路由缺位：config.routes 未配且工作区 routes 无键「${key}」（profile patch 行或工作区路由表二选一配 primary）`);
 }
 
-/** 调研简报（任务书输入）：显式主题 ∪ 大纲 **待核实** 条目（合并去重）。
- *
- * 通用件的一条干净规则（别人传什么进来是什么，无暗门条件）：
- * - topic → 主题式主输入，原样进任务书；
- * - source 显式指名 → 必须可读，读不到 = fail-loud 点名文件（caller 点了名就得给）；
- * - project → 项目背景进任务书 + 缺省扫 底稿/大纲.md 的待核实条目并入（有就并入，没有就
- *   没有，不算错——caller 没点名那个文件）；
- * - 空简报（topic 与待核实全无）→ gatherBrief 原样返回空，由 runResearch 主链统一 fail-loud。
- */
-export async function gatherBrief(req: { topic?: unknown; source?: unknown; project: ResolvedProject | null }): Promise<{ topic: string; strands: string[] }> {
-  const topic = String(req.topic ?? "").trim();
-  const sourceRaw = typeof req.source === "string" ? req.source : "";
-  const sourceGiven = sourceRaw.trim().length > 0;
-  const strands: string[] = [];
-  if (req.project) {
-    const sourceRel = sourceGiven ? sourceRaw.trim() : DEFAULT_SOURCE;
-    try {
-      const md = await readFile(join(req.project.abs, sourceRel), "utf8");
-      strands.push(
-        ...extractPendingItems(md)
-          .map((s) => s.trim())
-          .filter(Boolean),
-      );
-    } catch (e) {
-      if (sourceGiven) throw new Error(`调研源文档不可读：${sourceRel}（${(e as Error).message}）`);
-    }
-  }
-  return { topic, strands: [...new Set(strands)] };
-}
-
-/** 调研写手任务书 v2（四段流程内建 + 报告格式内建；不因外部提示覆盖）。 */
-export function buildResearchTask(req: { caseId: string; topic: string; strands: string[]; project: string; providerId: string }): string {
+/** 调研写手任务书 v3（四段流程内建 + 报告格式内建；strands = 调用方自带已知条目，库级可选输入）。 */
+export function buildResearchTask(req: { caseId: string; topic: string; strands?: string[]; providerId: string }): string {
   const strandBlock =
-    req.strands.length > 0 ? ["", "## 已知待查清单（把它们并入研究线，不遗漏）", ...req.strands.map((s, i) => `${i + 1}. ${s}`)].join("\n") : "";
+    req.strands && req.strands.length > 0 ? ["", "## 已知待查清单（把它们并入研究线，不遗漏）", ...req.strands.map((s, i) => `${i + 1}. ${s}`)].join("\n") : "";
   return [
-    "你是调研写手（researcher）。你独立完成一次主题式深度调研：自己规划、自己检索取证、自己合成报告，不落盘（留档由编排代码做），最后调用 structured_output 工具按交付格式提交（JSON 作为工具参数，不要写在回复文本里）。",
+    "你是调研写手（researcher）。你独立完成一次主题式深度调研：自己规划、自己检索取证、自己合成报告，不落盘（交付由编排代码回传调用方），最后调用 structured_output 工具按交付格式提交（JSON 作为工具参数，不要写在回复文本里）。",
     "",
     `case_id: ${req.caseId}`,
     `调研主题: ${req.topic}`,
-    req.project ? `项目背景: ${req.project}` : "",
     `搜索工具: 本会话的 web_search（provider=${req.providerId}）与 web_fetch 可用，直接用。`,
     "",
     "## 研究流程（四段，全由你在本会话内完成）",
@@ -149,41 +111,24 @@ export type ResearchDeps = {
 };
 
 export type ResearchRequest = {
-  project?: unknown;
-  topic?: unknown;
-  source?: unknown;
-  path?: unknown;
-  label?: unknown;
+  topic: unknown;
+  /** 已知待查条目（库级可选输入，通用概念：调用方自带材料清单；工具面不暴露）。 */
+  strands?: string[];
   routes?: unknown;
   routeKey?: unknown;
   caseId?: unknown;
   watchdogMs?: unknown;
 };
 
-/** research 主链：定位 → 入参一致性 → 简报 → provider 识别 → 路由 → 派单 → 内容门 → 留档 → 收据（报告全文回调用方）。 */
+/** research 主链：主题 → provider 识别 → 路由 → 派单 → 内容门 → 收据（报告全文回调用方）。 */
 export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Promise<ResearchReceipt> {
   const startedAt = performance.now();
   const say = deps.say;
-  // ① 项目定位（可选——通用模式可以不带项目）
-  const projectName = String(req.project ?? "").trim();
-  let project: ResolvedProject | null = null;
-  if (projectName) {
-    project = resolveProject(deps.ws, projectName);
-    if (!project.existed) throw new Error(`项目定位失败：${projectName}（候选：${project.candidates.join(" | ")}）`);
-    say?.(`[research] 项目定位：${project.rel}${project.autoPrefixed ? "（自动补前缀）" : ""}`);
-  }
-  // ② 入参一致性：path 只在 project 模式有意义（传了就得有效果，否则明说）
-  if (!project && typeof req.path === "string" && req.path.trim()) {
-    throw new Error("path 参数仅在 project 模式生效：给了 path 但未给 project（留档无处可放，fail-loud）");
-  }
-  // ③ 简报：主题 ∪ 大纲待核实
-  const brief = await gatherBrief({ topic: req.topic, source: req.source, project });
-  if (!brief.topic && brief.strands.length === 0) {
-    throw new Error("调研主题为空：请给 topic（主题句），或带 project 且其大纲含 **待核实** 条目（fail-loud，不空跑）");
-  }
-  const topic = brief.topic || `${project!.rel} 的大纲待核实事项逐条查证`;
+  // ① 主题（schema required:true 已拦；这里只对直连 engine 的调用做防御）
+  const topic = String(req.topic ?? "").trim();
+  if (!topic) throw new Error("调研主题为空：请给 topic（主题句）");
   say?.(`[research] 主题：${topic}`);
-  // ④ provider 识别（配谁用谁；无可用 = 不派注定失败的写手——先于路由：硬前提先检）
+  // ② provider 识别（配谁用谁；无可用 = 不派注定失败的写手——先于路由：硬前提先检）
   const providerInfo = detectSearchProvider(deps.web);
   if (!providerInfo.effective) {
     return {
@@ -194,7 +139,7 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
     };
   }
   say?.(`[research] 搜索 provider：${providerInfo.effective}`);
-  // ⑤ 路由（单条，fallback 明确不消费）
+  // ③ 路由（单条，fallback 明确不消费）
   const route = resolvePrimaryRoute(deps.ws, {
     routes: req.routes,
     routeKey: typeof req.routeKey === "string" ? req.routeKey : undefined,
@@ -203,16 +148,15 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
     ? { provider: route.provider, model: route.model, thinkingLevel: route.thinkingLevel }
     : { provider: route.provider, model: route.model };
   say?.(`[research] 路由 ${route.provider}/${route.model}（单路由口径）`);
-  // ⑥ caseId + 账本信封
+  // ④ caseId + 账本信封
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/gu, "");
   const caseId = String(req.caseId ?? "").trim() || `research-${stamp}`;
-  const label = String(req.label ?? "").trim() || topic.slice(0, 40);
   const handle = openSession({
     ws: deps.ws,
     skill: "researcher",
     tool: "research",
     case_id: caseId,
-    project: project?.rel ?? "",
+    project: "",
     mode: "research",
     subject: topic.slice(0, 200),
   });
@@ -227,10 +171,10 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
     }
   };
   try {
-    // ⑦ 派单（单路由 + nudge 缺省 1；routes 长度 1 ⇒ runner fallback 段自然不触）
+    // ⑤ 派单（单路由 + nudge 缺省 1；routes 长度 1 ⇒ runner fallback 段自然不触）
     const receipt = await runSubagentTask({
-      label: `research:${label}`,
-      task: buildResearchTask({ caseId, topic, strands: brief.strands, project: project?.rel ?? "", providerId: providerInfo.effective }),
+      label: `research:${topic.slice(0, 40)}`,
+      task: buildResearchTask({ caseId, topic, strands: req.strands, providerId: providerInfo.effective }),
       outputSchema: RESEARCH_DELIVERY_SCHEMA,
       routes: [routeSpec],
       caseId,
@@ -252,7 +196,7 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
       };
     }
     const delivery = receipt.structured as ResearchDelivery;
-    // ⑧ 内容门
+    // ⑥ 内容门
     const gate = validateDelivery(delivery);
     if (!gate.ok) {
       finishLedger("error", gate.errors.join("；"), {});
@@ -263,39 +207,20 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
         details: { case_id: caseId, failure_detail: gate.errors.join("；").slice(0, 500) },
       };
     }
-    // ⑨ 留档（project 模式：调研.md append 报告全文 + 证据行 atoms）
-    let evidenceRel = "";
-    if (project) {
-      evidenceRel = typeof req.path === "string" && req.path.trim() ? req.path.trim() : DEFAULT_EVIDENCE_PATH;
-      const evidenceAbs = join(project.abs, evidenceRel);
-      await mkdir(dirname(evidenceAbs), { recursive: true });
-      const at = new Date().toISOString().slice(0, 10);
-      let prefix = "";
-      try {
-        const existing = await readFile(evidenceAbs, "utf8");
-        if (existing.length && !existing.endsWith("\n")) prefix = "\n";
-      } catch {
-        /* 新文件无前缀 */
-      }
-      await appendFile(evidenceAbs, prefix + renderResearchSection(label, at, delivery), "utf8");
-    }
-    // ⑩ 收据（报告全文回调用方）
-    const rel = project ? relative(deps.ws, join(project.abs, evidenceRel)) || evidenceRel : "";
+    // ⑦ 收据（报告全文回调用方；facts/open_questions 作为元数据进 details）
     const facts = Array.isArray(delivery.facts) ? delivery.facts : [];
     const openCount = Array.isArray(delivery.open_questions) ? delivery.open_questions.length : 0;
     const duration = Math.round(performance.now() - startedAt);
     finishLedger("pass", "", {
-      ...(rel ? { evidence: rel } : {}),
       facts: String(facts.length),
       open_questions: String(openCount),
       provider: providerInfo.effective,
     });
     return {
       verdict: "pass",
-      text: `调研完成（${Math.round(duration / 100) / 10}s，provider=${providerInfo.effective}）：${facts.length} 条事实、${openCount} 条待核实余项${rel ? `；已留档 ${rel}` : ""}`,
+      text: `调研完成（${Math.round(duration / 100) / 10}s，provider=${providerInfo.effective}）：${facts.length} 条事实、${openCount} 条待核实余项`,
       report: String(delivery.report_markdown ?? ""),
       details: {
-        ...(rel ? { path: rel } : {}),
         facts: facts.length,
         open_questions: openCount,
         provider: providerInfo.effective,

@@ -1,4 +1,4 @@
-/** cordis.test.ts —— 注册面：createResearchTools 名册、无通道收据、cordis default 形与 apply 接线。
+/** cordis.test.ts —— 注册面：createResearchTools 名册、无通道/无 provider 收据、cordis default 形与 apply 接线。
  * ctx/工具对象按 AGENTS「模拟宿主注入对象的桩可宽断言」处理（any 桩 + 注明）。
  */
 
@@ -8,19 +8,30 @@ import { name, inject, default as plugin, apply } from "../src/cordis.ts";
 import { createResearchTools, resolveResearchWorkspace } from "../src/tools.ts";
 import type { ToolExec } from "../src/lib/host.ts";
 
-test("createResearchTools：单工具名册（research；通用主题式入口，无 build 后缀）", () => {
-  const tools = createResearchTools({ workspace: "/tmp/x", ctx: {} }) as Array<{ name: string }>;
+type ResearchTool = {
+  name: string;
+  description: string;
+  /** rootful 形（dtool 桥把 rootless properties 简写包成 object schema）。 */
+  parameters: { type: "object"; properties: Record<string, { type: string; description: string }>; required?: string[] };
+  execute(args: Record<string, unknown>, exec: unknown): Promise<{ verdict: string; summary: string; details?: Record<string, unknown> }>;
+};
+
+test("createResearchTools：单工具名册（research）+ 参数面 = topic 唯一（required，零宿主参数）", () => {
+  const tools = createResearchTools({ workspace: "/tmp/x", ctx: {} }) as unknown as ResearchTool[];
   assert.deepEqual(
     tools.map((t) => t.name),
     ["research"],
   );
+  const schema = tools[0].parameters;
+  assert.equal(schema.type, "object");
+  assert.deepEqual(Object.keys(schema.properties), ["topic"]);
+  assert.deepEqual(schema.required, ["topic"], "rootful 形：required 数组点名 topic");
+  assert.ok(!("project" in schema.properties), "project 已摘除（通用件不传宿主概念）");
+  assert.ok(!("source" in schema.properties) && !("path" in schema.properties) && !("label" in schema.properties));
 });
 
 test("research execute：宿主无 subagents 通道 → 收据 error 不抛（fail 保全，非 throw）", async () => {
-  const tools = createResearchTools({ workspace: "/tmp/x", ctx: {} }) as Array<{
-    name: string;
-    execute(args: Record<string, unknown>, exec: unknown): Promise<{ verdict: string; summary: string }>;
-  }>;
+  const tools = createResearchTools({ workspace: "/tmp/x", ctx: {} }) as unknown as ResearchTool[];
   const out = await tools[0].execute({ topic: "主题甲" }, undefined);
   assert.equal(out.verdict, "error");
   assert.match(out.summary, /派单通道/u);
@@ -31,7 +42,7 @@ test("research execute：无可用搜索 provider → 收据 error（不派单�
     workspace: "/tmp/x",
     // 宿主注入对象桩（AGENTS 允许宽断言）：subagents 通在、web seam 空。
     ctx: { subagents: { start: () => undefined }, web: { searchProviders: new Map() } } as never,
-  }) as Array<{ name: string; execute(args: Record<string, unknown>, exec: unknown): Promise<{ verdict: string; summary: string }> }>;
+  }) as unknown as ResearchTool[];
   const out = await tools[0].execute({ topic: "主题甲" }, { agent: { session: { meta: { cwd: "/tmp" } } } });
   assert.equal(out.verdict, "error");
   assert.match(out.summary, /provider 不可用/u);
