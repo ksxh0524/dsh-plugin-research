@@ -82,10 +82,11 @@
   <!-- 工序② 审查员 -->
   <rect x="190" y="712" width="480" height="150" rx="10" class="s2"/>
   <text x="430" y="738" text-anchor="middle" class="tt">工序② 审查员 Reviewer（隔离会话 · 只拿冻结初稿）</text>
-  <text x="214" y="764" class="t">· 自己 web_fetch 亲核来源：断言与原文逐字对、死链、独立性</text>
-  <text x="214" y="786" class="t">· 审标注与评级：可靠性五档错档、〔单一来源〕漏标</text>
-  <text x="214" y="808" class="t">· 审口径与覆盖：冲突并列？研究线缺口？</text>
-  <text x="214" y="830" class="t">· 输出：verdict pass | fix + issues[]（point/problem/fix_hint）</text>
+  <text x="214" y="762" class="t">· 自己 web_fetch 亲核来源：断言与原文逐字对、死链、独立性</text>
+  <text x="214" y="782" class="t">· 审标注与评级：可靠性五档错档、〔单一来源〕漏标</text>
+  <text x="214" y="802" class="t">· 审口径与覆盖：冲突并列？研究线缺口？</text>
+  <text x="214" y="822" class="t">· 输出：verdict pass | fix + issues[]（point/problem/fix_hint）</text>
+  <text x="214" y="842" class="t">· fetch_sources=true 时顺路收各来源全文进 sources[]（拉取段的料）</text>
   <path d="M190,800 C140,800 140,756 190,756" class="loop"/>
   <text x="136" y="764" text-anchor="middle" font-size="11" fill="#8a6d1a">structured 缺失</text>
   <text x="136" y="780" text-anchor="middle" font-size="11" fill="#8a6d1a">→ nudge ×1（仍失败→error）</text>
@@ -111,11 +112,13 @@
   <text x="430" y="1046" text-anchor="middle" font-size="12.5" fill="#5a6a7a">（采纳审查员笔误级修订 + sources）</text>
 
   <!-- 工序③ 修订轮 -->
-  <rect x="700" y="968" width="480" height="96" rx="10" class="s3"/>
+  <rect x="700" y="968" width="480" height="110" rx="10" class="s3"/>
   <text x="940" y="994" text-anchor="middle" class="tt">工序③ 调研员修订轮（隔离会话）</text>
   <text x="724" y="1018" class="t">· issue 清单逐条有着落：改写 / 换源 / 补查独立佐证 / 补标注</text>
-  <text x="724" y="1038" class="t">· 审查员已拉的 sources 带过去防重拉；fetch_sources 时补拉</text>
-  <path d="M730,1064 L730,1182 L614,1182" class="edge"/>
+  <text x="724" y="1038" class="t">· 维持打标纪律：〔可靠性：…〕逐行齐、〔单一来源〕、corroboration 校正</text>
+  <text x="724" y="1058" class="t">· fetch_sources 时：审查员已拉的 sources 带过去防重拉，新增来源补拉</text>
+  <text x="724" y="1074" font-size="11" fill="#8a6d1a">structured 缺失 → nudge ×1（仍失败 → error 收据：修订阶段失败）</text>
+  <path d="M730,1078 L730,1182 L614,1182" class="edge"/>
   <text x="650" y="1174" class="lbl">修订后终稿</text>
 
   <!-- G3 终稿代码门 -->
@@ -142,7 +145,7 @@
   <path d="M610,1306 L872,1298" stroke="#90a4ae" stroke-width="1.4" stroke-dasharray="6 4" fill="none" marker-end="url(#ar)"/>
   <rect x="880" y="1268" width="330" height="52" rx="8" fill="#f4f7f8" stroke="#90a4ae" stroke-width="1.3" stroke-dasharray="6 4"/>
   <text x="1045" y="1290" text-anchor="middle" font-size="12.5" fill="#546e7a">账本信封收口（fail-open）</text>
-  <text x="1045" y="1309" text-anchor="middle" font-size="11.5" fill="#78909c">三工序共用同一信封 · attempt 分笔</text>
+  <text x="1045" y="1309" text-anchor="middle" font-size="11.5" fill="#78909c">三工序同一信封 · attempt 分笔 · pass/error 皆收口</text>
 
   <!-- 工具回传 -->
   <line x1="430" y1="1332" x2="430" y2="1362" class="edge"/>

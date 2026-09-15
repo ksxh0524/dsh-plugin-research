@@ -35,14 +35,14 @@ flowchart TD
     N1 -- "still missing" --> Z4["error receipt: draft dispatch failed (all rounds kept)"]
     N1 -- "delivered" --> G1{"draft gate: substance floor + fact atoms"}
     G1 -- "fail" --> Z5["error receipt: draft gate rejected"]
-    G1 -- "pass" --> S2["Stage 2 Reviewer (isolated, frozen draft only)<br/>opens sources itself via web_fetch (fact match / dead links / independence / tags / conflicts)<br/>→ structured issue list (point/problem/fix_hint)"]
+    G1 -- "pass" --> S2["Stage 2 Reviewer (isolated, frozen draft only)<br/>opens sources itself via web_fetch (fact match / dead links / independence / tags / conflicts)<br/>→ structured issue list (point/problem/fix_hint)<br/>when fetch_sources=true, also collects per-source full text into sources[]"]
     S2 -- "structured missing" --> N2{"nudge ×1"}
     N2 -- "still missing" --> Z6["error receipt: review failed (unreviewed reports never ship)"]
     N2 -- "verdict returned" --> G2{"review consistency gate"}
     G2 -- "fix with no issues / pass with issues" --> Z7["error receipt: inconsistent review verdict"]
     G2 -- "pass (issues empty)" --> F["final = draft<br/>(adopts reviewer's typo-level fixes + sources)"]
     G2 -- "fix (issues present)" --> S3["Stage 3 Researcher revision round (isolated)<br/>re-research per issue (reviewer's fetched sources passed over to avoid re-fetching) → final"]
-    S3 -- "structured missing" --> Z8["error receipt: revision failed"]
+    S3 -- "structured missing → nudge ×1 still failing" --> Z8["error receipt: revision failed"]
     S3 -- "delivered" --> G3
     F --> G3{"final code gates<br/>① substance + facts ② every source-list row carries 〔可靠性：tier〕<br/>③ single-source facts carry 〔单一来源〕 ④ corroboration refs exist<br/>⑤ sources present when fetch_sources=true"}
     G3 -- "any fail" --> Z9["error receipt: names the gate and the problem"]

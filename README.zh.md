@@ -35,14 +35,14 @@ flowchart TD
     N1 -- "仍缺失" --> Z4["error 收据：初稿派单失败（全轮保全）"]
     N1 -- "有交付" --> G1{"初稿代码门：实质线 + facts 原子"}
     G1 -- "不过" --> Z5["error 收据：初稿内容门未过"]
-    G1 -- "过" --> S2["工序② 审查员 Reviewer（隔离会话，只拿冻结初稿）<br/>自己 web_fetch 亲核来源（事实一致/死链/独立性/标注/口径）<br/>→ 结构化 issue 清单（point/problem/fix_hint）"]
+    G1 -- "过" --> S2["工序② 审查员 Reviewer（隔离会话，只拿冻结初稿）<br/>自己 web_fetch 亲核来源（事实一致/死链/独立性/标注/口径）<br/>→ 结构化 issue 清单（point/problem/fix_hint）<br/>fetch_sources=true 时顺路收各来源全文进 sources[]"]
     S2 -- "structured 缺失" --> N2{"nudge ×1"}
     N2 -- "仍缺失" --> Z6["error 收据：审查阶段失败（未审不交付）"]
     N2 -- "有结论" --> G2{"审查一致性门"}
     G2 -- "判 fix 却无清单 / 判 pass 却带 issue" --> Z7["error 收据：审查结论不一致"]
     G2 -- "pass（issues 空）" --> F["终稿 = 初稿<br/>（采纳审查员笔误级修订 + sources）"]
     G2 -- "fix（issues 非空）" --> S3["工序③ 调研员修订轮（隔离会话）<br/>issue 逐条重新调研补足（审查员已拉来源带过去防重拉）→ 终稿"]
-    S3 -- "structured 缺失" --> Z8["error 收据：修订阶段失败"]
+    S3 -- "structured 缺失 → nudge ×1 仍失败" --> Z8["error 收据：修订阶段失败"]
     S3 -- "有终稿" --> G3
     F --> G3{"终稿代码门<br/>① 实质线+facts ② 来源清单逐行〔可靠性：五档〕<br/>③ 单源事实必标〔单一来源〕 ④ corroboration 引用存在<br/>⑤ fetch_sources=true 时 sources 在场"}
     G3 -- "任一不过" --> Z9["error 收据：点名哪道门、什么问题"]
