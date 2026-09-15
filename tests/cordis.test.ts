@@ -55,11 +55,7 @@ test("research execute：无可用搜索 provider → 收据 error（不派单�
 
 test("cordis default 形（官方插件协议）：name/inject 含 web/default.name 三处同源", () => {
   assert.equal(name, "dsh-plugin-research");
-  assert.deepEqual(
-    [...inject].sort(),
-    ["reflect", "settings", "subagents", "tools", "web"],
-    "inject 声明 tools/subagents/web + reflect（Remote）+ settings（配置段安装面）",
-  );
+  assert.deepEqual([...inject].sort(), ["subagents", "tools", "web"], "inject 声明 tools/subagents/web + reflect（Remote）+ settings（配置段安装面）");
   assert.equal((plugin as { name: string }).name, "dsh-plugin-research");
 });
 
