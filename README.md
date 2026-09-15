@@ -18,6 +18,11 @@ Shape follows the generic deep-research references ([gpt-researcher](https://doc
 
 ## Pipeline
 
+![research 全流程图](docs/pipeline.svg)
+
+<details>
+<summary>mermaid source</summary>
+
 ```mermaid
 flowchart TD
     A["research(topic, fetch_sources?)"] --> B{"topic empty?"}
@@ -57,6 +62,8 @@ flowchart TD
     style Z9 fill:#f9d6d6,color:#5a1414
     style OK fill:#d8efdb,color:#14401a
 ```
+
+</details>
 
 Key property: the three stages are **mutually blind sessions** (only frozen JSON crosses between them via the engine), **every transition is decided by engine code**, and any gate failure = error receipt — an unreviewed report is never delivered.
 

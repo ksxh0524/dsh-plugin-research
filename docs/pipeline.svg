@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1460" viewBox="0 0 1240 1460" font-family="-apple-system, 'PingFang SC', 'Helvetica Neue', sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#607080"/>
+    </marker>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,10 z" fill="#c0392b"/>
+    </marker>
+  </defs>
+  <style>
+    .proc { fill: #eef2f7; stroke: #5b7290; stroke-width: 1.5; rx: 8; }
+    .s1 { fill: #e8f0fe; stroke: #3b6fd4; stroke-width: 1.8; }
+    .s2 { fill: #f1e9fb; stroke: #7d3bd4; stroke-width: 1.8; }
+    .s3 { fill: #fdeee2; stroke: #cf7a3b; stroke-width: 1.8; }
+    .gate { fill: #fff8e1; stroke: #c9a22b; stroke-width: 1.8; }
+    .err { fill: #fdecec; stroke: #c0392b; stroke-width: 1.6; }
+    .ok { fill: #e3f5e6; stroke: #2e7d32; stroke-width: 1.8; }
+    .t { font-size: 13px; fill: #2d3748; }
+    .tt { font-size: 15px; font-weight: 700; fill: #1a202c; }
+    .tg { font-size: 14px; font-weight: 700; fill: #7a5c10; }
+    .te { font-size: 12.5px; fill: #8a1f1f; }
+    .edge { stroke: #607080; stroke-width: 1.7; fill: none; marker-end: url(#ar); }
+    .edgeR { stroke: #c0392b; stroke-width: 1.6; fill: none; marker-end: url(#arr); }
+    .lbl { font-size: 12px; fill: #5a6a7a; }
+    .loop { stroke: #b7791f; stroke-width: 1.5; fill: none; stroke-dasharray: 5 3; marker-end: url(#ar); }
+  </style>
+  <rect width="1240" height="1460" fill="#ffffff"/>
+
+  <!-- 入口 -->
+  <rect x="300" y="26" width="260" height="46" rx="23" fill="#3b6fd4"/>
+  <text x="430" y="55" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">research(topic, fetch_sources?)</text>
+
+  <!-- D1 主题 -->
+  <line x1="430" y1="72" x2="430" y2="100" class="edge"/>
+  <polygon points="315,132 430,100 545,132 430,164" fill="#fff8e1" stroke="#c9a22b" stroke-width="1.6"/>
+  <text x="430" y="138" text-anchor="middle" class="tg" font-size="14">主题为空？</text>
+  <line x1="545" y1="132" x2="876" y2="132" class="edgeR"/>
+  <rect x="880" y="110" width="330" height="44" rx="8" class="err"/>
+  <text x="1045" y="138" text-anchor="middle" class="te">fail：请给 topic（主题句）</text>
+  <line x1="430" y1="164" x2="430" y2="194" class="edge"/>
+  <text x="443" y="184" class="lbl">非空</text>
+
+  <!-- D2 provider -->
+  <polygon points="315,226 430,194 545,226 430,258" fill="#fff8e1" stroke="#c9a22b" stroke-width="1.6"/>
+  <text x="430" y="232" text-anchor="middle" class="tg" font-size="14">provider 可用？</text>
+  <line x1="545" y1="226" x2="876" y2="226" class="edgeR"/>
+  <rect x="880" y="192" width="330" height="70" rx="8" class="err"/>
+  <text x="1045" y="219" text-anchor="middle" class="te">error 收据：provider 不可用 / 歧义 / 配置落空</text>
+  <text x="1045" y="240" text-anchor="middle" class="te">（点名上报 · 不代选 · 不派单）</text>
+  <line x1="430" y1="258" x2="430" y2="284" class="edge"/>
+  <text x="443" y="277" class="lbl">命中</text>
+
+  <!-- 路由 + 账本 -->
+  <rect x="250" y="286" width="360" height="54" rx="8" fill="#eef2f7" stroke="#5b7290" stroke-width="1.5"/>
+  <text x="430" y="308" text-anchor="middle" class="tt" font-size="14">路由解析（单路由 primary）</text>
+  <text x="430" y="328" text-anchor="middle" class="t">config.routes &gt; 工作区 routes 键，皆无 = throw</text>
+  <line x1="430" y1="340" x2="430" y2="362" class="edge"/>
+  <rect x="250" y="364" width="360" height="40" rx="8" fill="#eef2f7" stroke="#5b7290" stroke-width="1.5"/>
+  <text x="430" y="390" text-anchor="middle" class="t">开账本信封（skill=researcher · tool=research）</text>
+  <line x1="430" y1="404" x2="430" y2="426" class="edge"/>
+
+  <!-- 工序① 调研员 -->
+  <rect x="190" y="428" width="480" height="172" rx="10" class="s1"/>
+  <text x="430" y="454" text-anchor="middle" class="tt">工序① 调研员 Researcher（隔离会话）</text>
+  <text x="214" y="480" class="t">· 主题详略自判 → 规划 4–8 条研究线（角度/实体/时段/对立面）</text>
+  <text x="214" y="502" class="t">· web_search / web_fetch 定向检索取证，引语数字只取页面原文</text>
+  <text x="214" y="524" class="t">· 逐源交叉比对：有用性过滤 / 独立性（≥2 独立源）/ 单源检测</text>
+  <text x="214" y="546" class="t">· 全量打标：可靠性五档、〔单一来源〕、corroboration 佐证编号</text>
+  <text x="214" y="568" class="t">· 输出 JSON 合同：report 初稿 + facts[] + open_questions[]</text>
+  <path d="M190,510 C140,510 140,464 190,464" class="loop"/>
+  <text x="136" y="472" text-anchor="middle" font-size="11" fill="#8a6d1a">structured 缺失</text>
+  <text x="136" y="488" text-anchor="middle" font-size="11" fill="#8a6d1a">→ nudge ×1（仍失败→error）</text>
+
+  <!-- G1 初稿门 -->
+  <line x1="430" y1="600" x2="430" y2="620" class="edge"/>
+  <polygon points="300,652 430,620 560,652 430,684" fill="#fff8e1" stroke="#c9a22b" stroke-width="1.6"/>
+  <text x="430" y="658" text-anchor="middle" class="tg" font-size="13.5">初稿代码门：实质线 + facts 原子</text>
+  <line x1="560" y1="652" x2="876" y2="652" class="edgeR"/>
+  <rect x="880" y="630" width="330" height="44" rx="8" class="err"/>
+  <text x="1045" y="658" text-anchor="middle" class="te">error 收据：初稿内容门未过</text>
+  <line x1="430" y1="684" x2="430" y2="710" class="edge"/>
+  <text x="443" y="703" class="lbl">过</text>
+
+  <!-- 工序② 审查员 -->
+  <rect x="190" y="712" width="480" height="150" rx="10" class="s2"/>
+  <text x="430" y="738" text-anchor="middle" class="tt">工序② 审查员 Reviewer（隔离会话 · 只拿冻结初稿）</text>
+  <text x="214" y="764" class="t">· 自己 web_fetch 亲核来源：断言与原文逐字对、死链、独立性</text>
+  <text x="214" y="786" class="t">· 审标注与评级：可靠性五档错档、〔单一来源〕漏标</text>
+  <text x="214" y="808" class="t">· 审口径与覆盖：冲突并列？研究线缺口？</text>
+  <text x="214" y="830" class="t">· 输出：verdict pass | fix + issues[]（point/problem/fix_hint）</text>
+  <path d="M190,800 C140,800 140,756 190,756" class="loop"/>
+  <text x="136" y="764" text-anchor="middle" font-size="11" fill="#8a6d1a">structured 缺失</text>
+  <text x="136" y="780" text-anchor="middle" font-size="11" fill="#8a6d1a">→ nudge ×1（仍失败→error）</text>
+
+  <!-- G2 一致性门 -->
+  <line x1="430" y1="862" x2="430" y2="876" class="edge"/>
+  <polygon points="310,908 430,876 550,908 430,940" fill="#fff8e1" stroke="#c9a22b" stroke-width="1.6"/>
+  <text x="430" y="914" text-anchor="middle" class="tg" font-size="14">审查一致性门</text>
+  <line x1="550" y1="908" x2="876" y2="908" class="edgeR"/>
+  <rect x="880" y="876" width="330" height="64" rx="8" class="err"/>
+  <text x="1045" y="900" text-anchor="middle" class="te">error 收据：审查结论不一致</text>
+  <text x="1045" y="922" text-anchor="middle" class="te">（判 fix 无清单 / 判 pass 带 issue）</text>
+
+  <!-- 分叉：pass 直下 / fix 右下 -->
+  <line x1="430" y1="940" x2="430" y2="998" class="edge"/>
+  <text x="380" y="975" class="lbl">pass（issues 空）</text>
+  <path d="M430,940 L430,952 L760,952 L760,964" class="edge"/>
+  <text x="500" y="946" class="lbl">fix（issues 非空）</text>
+
+  <!-- F：pass 合流 -->
+  <rect x="250" y="1000" width="360" height="62" rx="8" fill="#eef2f7" stroke="#5b7290" stroke-width="1.5"/>
+  <text x="430" y="1024" text-anchor="middle" class="t" font-weight="700">pass：终稿 = 初稿</text>
+  <text x="430" y="1046" text-anchor="middle" font-size="12.5" fill="#5a6a7a">（采纳审查员笔误级修订 + sources）</text>
+
+  <!-- 工序③ 修订轮 -->
+  <rect x="700" y="968" width="480" height="96" rx="10" class="s3"/>
+  <text x="940" y="994" text-anchor="middle" class="tt">工序③ 调研员修订轮（隔离会话）</text>
+  <text x="724" y="1018" class="t">· issue 清单逐条有着落：改写 / 换源 / 补查独立佐证 / 补标注</text>
+  <text x="724" y="1038" class="t">· 审查员已拉的 sources 带过去防重拉；fetch_sources 时补拉</text>
+  <path d="M730,1064 L730,1182 L614,1182" class="edge"/>
+  <text x="650" y="1174" class="lbl">修订后终稿</text>
+
+  <!-- G3 终稿代码门 -->
+  <rect x="250" y="1112" width="360" height="140" rx="10" fill="#fff8e1" stroke="#c9a22b" stroke-width="1.8"/>
+  <text x="430" y="1136" text-anchor="middle" class="tt">终稿代码门（全过才放行）</text>
+  <text x="270" y="1158" class="t">① 实质线 + facts 原子</text>
+  <text x="270" y="1177" class="t">② 来源清单逐行带〔可靠性：五档之一〕</text>
+  <text x="270" y="1196" class="t">③ 单源事实正文必标〔单一来源〕</text>
+  <text x="270" y="1215" class="t">④ corroboration 引用的 [SRC-n] 必须存在</text>
+  <text x="270" y="1234" class="t">⑤ fetch_sources=true 时 sources[] 在场</text>
+  <line x1="610" y1="1140" x2="876" y2="1140" class="edgeR"/>
+  <rect x="880" y="1100" width="330" height="52" rx="8" class="err"/>
+  <text x="1045" y="1120" text-anchor="middle" class="te">error 收据：终稿代码门未过</text>
+  <text x="1045" y="1140" text-anchor="middle" class="te">（点名哪道门、什么问题）</text>
+
+  <!-- OK -->
+  <line x1="430" y1="1252" x2="430" y2="1278" class="edge"/>
+  <text x="443" y="1265" class="lbl">全过</text>
+  <rect x="250" y="1280" width="360" height="52" rx="8" class="ok"/>
+  <text x="430" y="1300" text-anchor="middle" class="t" font-weight="700">pass 收据：report 全文 + 来源全文附录</text>
+  <text x="430" y="1320" text-anchor="middle" font-size="12" fill="#1d4d1f">details：facts / sources / reviewed（pass | fix-revised）</text>
+
+  <!-- 账本收口（虚线） -->
+  <path d="M610,1306 L872,1298" stroke="#90a4ae" stroke-width="1.4" stroke-dasharray="6 4" fill="none" marker-end="url(#ar)"/>
+  <rect x="880" y="1268" width="330" height="52" rx="8" fill="#f4f7f8" stroke="#90a4ae" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="1045" y="1290" text-anchor="middle" font-size="12.5" fill="#546e7a">账本信封收口（fail-open）</text>
+  <text x="1045" y="1309" text-anchor="middle" font-size="11.5" fill="#78909c">三工序共用同一信封 · attempt 分笔</text>
+
+  <!-- 工具回传 -->
+  <line x1="430" y1="1332" x2="430" y2="1362" class="edge"/>
+  <rect x="250" y="1366" width="360" height="56" rx="8" fill="#e3f5e6" stroke="#2e7d32" stroke-width="1.6"/>
+  <text x="430" y="1388" text-anchor="middle" class="t" font-weight="700">工具 render 回调用方：三段文本块</text>
+  <text x="430" y="1408" text-anchor="middle" font-size="12.5" fill="#1d4d1f">summary / 调研报告 / 来源附录</text>
+</svg>

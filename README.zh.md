@@ -18,6 +18,11 @@
 
 ## 流程图
 
+![research 全流程图](docs/pipeline.svg)
+
+<details>
+<summary>mermaid 源码</summary>
+
 ```mermaid
 flowchart TD
     A["research(topic, fetch_sources?)"] --> B{"主题为空？"}
@@ -57,6 +62,8 @@ flowchart TD
     style Z9 fill:#f9d6d6,color:#5a1414
     style OK fill:#d8efdb,color:#14401a
 ```
+
+</details>
 
 要点：**三道隔离工序互不可见会话**（只经引擎传冻结 JSON），**所有环节由引擎代码判定推进**，任何一道门不过 = error 收据，绝不给未复核的报告。
 
