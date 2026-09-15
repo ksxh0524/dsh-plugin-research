@@ -16,6 +16,50 @@ Shape follows the generic deep-research references ([gpt-researcher](https://doc
 - Shared infrastructure comes from `aivideo-core` via `link:../aivideo-core` (the five-stage subagent runner true source).
 - Project-side archiving (evidence rows into `底稿/调研.md` for the outline citation gate) is **not** this plugin's business — the writing cluster wraps this engine in its own repo (planned).
 
+## Pipeline
+
+```mermaid
+flowchart TD
+    A["research(topic, fetch_sources?)"] --> B{"topic empty?"}
+    B -- "empty" --> Z1["fail: please pass topic"]
+    B -- "non-empty" --> C{"web seam search provider available?"}
+    C -- "none" --> Z2["error receipt: provider unavailable (no dispatch)"]
+    C -- "ambiguous / config miss" --> Z3["error receipt: named report, never silently resolved"]
+    C -- "hit" --> D["route resolution (single-route primary)<br/>config.routes &gt; workspace routes key; none = throw"]
+    D --> E["open ledger envelope (skill=researcher, tool=research)"]
+    E --> S1["Stage 1 Researcher (isolated session)<br/>self-judge topic detail → plan 4-8 strands<br/>→ web_search/web_fetch passes<br/>→ cross-check every source + tag all (reliability tiers / single-source / corroboration) → draft"]
+    S1 -- "structured missing" --> N1{"nudge ×1"}
+    N1 -- "still missing" --> Z4["error receipt: draft dispatch failed (all rounds kept)"]
+    N1 -- "delivered" --> G1{"draft gate: substance floor + fact atoms"}
+    G1 -- "fail" --> Z5["error receipt: draft gate rejected"]
+    G1 -- "pass" --> S2["Stage 2 Reviewer (isolated, frozen draft only)<br/>opens sources itself via web_fetch (fact match / dead links / independence / tags / conflicts)<br/>→ structured issue list (point/problem/fix_hint)"]
+    S2 -- "structured missing" --> N2{"nudge ×1"}
+    N2 -- "still missing" --> Z6["error receipt: review failed (unreviewed reports never ship)"]
+    N2 -- "verdict returned" --> G2{"review consistency gate"}
+    G2 -- "fix with no issues / pass with issues" --> Z7["error receipt: inconsistent review verdict"]
+    G2 -- "pass (issues empty)" --> F["final = draft<br/>(adopts reviewer's typo-level fixes + sources)"]
+    G2 -- "fix (issues present)" --> S3["Stage 3 Researcher revision round (isolated)<br/>re-research per issue (reviewer's fetched sources passed over to avoid re-fetching) → final"]
+    S3 -- "structured missing" --> Z8["error receipt: revision failed"]
+    S3 -- "delivered" --> G3
+    F --> G3{"final code gates<br/>① substance + facts ② every source-list row carries 〔可靠性：tier〕<br/>③ single-source facts carry 〔单一来源〕 ④ corroboration refs exist<br/>⑤ sources present when fetch_sources=true"}
+    G3 -- "any fail" --> Z9["error receipt: names the gate and the problem"]
+    G3 -- "all pass" --> OK["pass receipt<br/>report full text + source full-text appendix + details (facts/sources/reviewed…)"]
+    OK --> R["tool render returns three text blocks<br/>summary / report / source appendix"]
+    OK -.-> L["ledger envelope closed (fail-open)"]
+    style Z1 fill:#f9d6d6,color:#5a1414
+    style Z2 fill:#f9d6d6,color:#5a1414
+    style Z3 fill:#f9d6d6,color:#5a1414
+    style Z4 fill:#f9d6d6,color:#5a1414
+    style Z5 fill:#f9d6d6,color:#5a1414
+    style Z6 fill:#f9d6d6,color:#5a1414
+    style Z7 fill:#f9d6d6,color:#5a1414
+    style Z8 fill:#f9d6d6,color:#5a1414
+    style Z9 fill:#f9d6d6,color:#5a1414
+    style OK fill:#d8efdb,color:#14401a
+```
+
+Key property: the three stages are **mutually blind sessions** (only frozen JSON crosses between them via the engine), **every transition is decided by engine code**, and any gate failure = error receipt — an unreviewed report is never delivered.
+
 ## Config
 
 | key         | Description                                                                      |
