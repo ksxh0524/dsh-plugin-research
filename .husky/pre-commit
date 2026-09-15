@@ -1,0 +1,7 @@
+# 密钥扫描：gitleaks v8.18+ 推荐写法（无 CLI 的机器跳过，不假故障）。
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact || exit 1
+fi
+# 暂存文件格式化 + 类型检查（无构建链：tsc --noEmit 是唯一静态网）。
+pnpm exec lint-staged || exit 1
+pnpm typecheck || exit 1

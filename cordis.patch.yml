@@ -1,0 +1,10 @@
+# dsh-plugin-research bundle 层：跨域调研插件。
+# 行名（id）= loader 条目唯一键；name=包名（改名必同步 package.json）。
+# workspace 指 plugin 服务的工作区根（项目定位/证据落点按它走）；缺省 = 会话 cwd 探测。
+# routes 缺省读工作区 routes 文件键 content-writer.researcher（getTaskSpecSync 三级回落）；
+# profile patch 行可显式覆盖 config.routes。
+- insert:
+    - id: dsh-plugin-research-main
+      name: dsh-plugin-research
+      config:
+        workspace: /Volumes/DATA/AI视频/自动剪辑

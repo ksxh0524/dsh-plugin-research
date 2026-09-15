@@ -1,0 +1,2 @@
+# 全量行为验证：node --test（fixture 口径；真实 web 调研链路不进单测——烧钱且不可重现）。
+pnpm test || exit 1
