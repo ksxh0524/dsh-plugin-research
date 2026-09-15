@@ -16,7 +16,7 @@ type ResearchTool = {
   execute(args: Record<string, unknown>, exec: unknown): Promise<{ verdict: string; summary: string; details?: Record<string, unknown> }>;
 };
 
-test("createResearchTools：单工具名册（research）+ 参数面 = topic 唯一（required，零宿主参数）", () => {
+test("createResearchTools：单工具名册（research）+ 参数面 = topic + fetch_sources（topic required，零宿主参数）", () => {
   const tools = createResearchTools({ workspace: "/tmp/x", ctx: {} }) as unknown as ResearchTool[];
   assert.deepEqual(
     tools.map((t) => t.name),
@@ -24,8 +24,8 @@ test("createResearchTools：单工具名册（research）+ 参数面 = topic 唯
   );
   const schema = tools[0].parameters;
   assert.equal(schema.type, "object");
-  assert.deepEqual(Object.keys(schema.properties), ["topic"]);
-  assert.deepEqual(schema.required, ["topic"], "rootful 形：required 数组点名 topic");
+  assert.deepEqual(Object.keys(schema.properties).sort(), ["fetch_sources", "topic"].sort());
+  assert.deepEqual(schema.required, ["topic"], "rootful 形：required 数组点名 topic（fetch_sources 可选）");
   assert.ok(!("project" in schema.properties), "project 已摘除（通用件不传宿主概念）");
   assert.ok(!("source" in schema.properties) && !("path" in schema.properties) && !("label" in schema.properties));
 });

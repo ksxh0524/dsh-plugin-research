@@ -1,10 +1,17 @@
-/** contract.test.ts —— 调研交付合同 v3：报告实质门与事实原子校验（fixture 真语义数据）。
+/** contract.test.ts —— 调研交付合同 v3.1：报告实质门、事实原子、来源拉取门、附录渲染（fixture 真语义数据）。
  * 证据行/落档小节/待核实提取已随宿主概念摘除——那是写作簇的库标准，不在本包。
  */
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateDelivery, REPORT_MIN_CHARS, type ResearchDelivery } from "../src/contract.ts";
+import {
+  validateDelivery,
+  validateSourceFetch,
+  renderSourceAppendix,
+  REPORT_MIN_CHARS,
+  RESEARCH_DELIVERY_SCHEMA,
+  type ResearchDelivery,
+} from "../src/contract.ts";
 
 const OK_REPORT = [
   "# 调研报告 — 测试主题（2026-09-15）",
@@ -83,4 +90,101 @@ test("validateDelivery：断言空 / URL 非法 / completed 空事实 / 双空 �
   const doubleEmpty = validateDelivery({ case_id: "c", status: "partial", report_markdown: OK_REPORT, facts: [], open_questions: [] });
   assert.equal(doubleEmpty.ok, false);
   assert.ok(doubleEmpty.errors.some((e) => e.includes("双空")));
+});
+
+const FETCH_DELIVERY: ResearchDelivery = {
+  case_id: "c",
+  status: "completed",
+  report_markdown: OK_REPORT,
+  facts: [],
+  open_questions: ["x"],
+  sources: [
+    {
+      src: "SRC-1",
+      title: "KO 年报",
+      url: "https://investor.example.com/ko-2025",
+      date: "2026-02-15",
+      domain: "investor.example.com",
+      reliability: "官方一手",
+      content: "年报正文（足够长以过拉取判定）".repeat(6),
+    },
+    {
+      src: "SRC-2",
+      title: "PE 10-K",
+      url: "https://investor.example.com/pe-2025",
+      date: "2026-02-10",
+      domain: "investor.example.com",
+      reliability: "权威媒体",
+    },
+    {
+      src: "SRC-3",
+      title: "第三方研报",
+      url: "https://research.example.org/report-2025",
+      date: "unknown",
+      domain: "research.example.org",
+      reliability: "行业报告",
+      content: "摘要",
+    },
+  ],
+};
+
+test("validateSourceFetch：合法通过；sources 空/字段缺失/URL 非法 各自拦截（content 缺席合法）", () => {
+  const ok = validateSourceFetch(FETCH_DELIVERY);
+  assert.deepEqual(ok, { ok: true, errors: [] });
+
+  const none = validateSourceFetch({ ...FETCH_DELIVERY, sources: [] });
+  assert.equal(none.ok, false);
+  assert.match(none.errors[0], /fetch_sources=true 但交付未附 sources/u);
+
+  const missingFields = validateSourceFetch({
+    ...FETCH_DELIVERY,
+    sources: [{ src: "", title: "t", url: "https://a.b/c", date: "d", domain: "a.b", reliability: "" }],
+  });
+  assert.equal(missingFields.ok, false);
+  assert.match(missingFields.errors[0], /src\/title\/reliability 缺失/u);
+
+  const badUrl = validateSourceFetch({
+    ...FETCH_DELIVERY,
+    sources: [{ src: "SRC-9", title: "坏源", url: "不是URL", date: "unknown", domain: "example.org", reliability: "论坛" }],
+  });
+  assert.equal(badUrl.ok, false, "非法 URL 必须被拦");
+  assert.ok(badUrl.errors.some((e) => e.includes("url 非法")));
+});
+
+test("renderSourceAppendix：逐源小节 + 失败标注 + 超长截断 + 成功计数；顺序按数组原样（src 对应来源清单）", () => {
+  const longBody = "正文段落。".repeat(5000);
+  const appendix = renderSourceAppendix([
+    {
+      src: "SRC-1",
+      title: "KO 年报",
+      url: "https://investor.example.com/ko-2025",
+      date: "2026-02-15",
+      domain: "investor.example.com",
+      reliability: "官方一手",
+      content: longBody,
+    },
+    {
+      src: "SRC-2",
+      title: "PE 10-K",
+      url: "https://investor.example.com/pe-2025",
+      date: "2026-02-10",
+      domain: "investor.example.com",
+      reliability: "权威媒体",
+    },
+  ]);
+  assert.ok(appendix.startsWith("\n## 附：来源全文\n"));
+  assert.ok(appendix.includes("### [SRC-1] KO 年报 — https://investor.example.com/ko-2025"));
+  assert.ok(appendix.includes("（2026-02-15，investor.example.com，官方一手）"));
+  assert.ok(appendix.includes("（全文过长，截断至 20000 字符）"));
+  assert.ok(appendix.includes("### [SRC-2] PE 10-K"));
+  assert.ok(appendix.includes("（拉取失败，无全文）"));
+  assert.ok(appendix.includes("（拉取成功 1/2 份）"));
+});
+
+test("RESEARCH_DELIVERY_SCHEMA：facts 项含 reliability/corroboration 可选字段；sources 项必填五字段", () => {
+  const factItems = (RESEARCH_DELIVERY_SCHEMA.properties as Record<string, { items: { properties: Record<string, unknown> } }>).facts.items.properties;
+  assert.ok("reliability" in factItems);
+  assert.ok("corroboration" in factItems);
+  const sourceItems = (RESEARCH_DELIVERY_SCHEMA.properties as Record<string, { items: { required: string[] } }>).sources.items.required;
+  assert.deepEqual([...sourceItems].sort(), ["domain", "reliability", "src", "title", "url"].sort());
 });
