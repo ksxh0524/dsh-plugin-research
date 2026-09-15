@@ -1,9 +1,10 @@
 {
   "name": "dsh-plugin-research",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
-  "description": "跨域调研 DSH 插件：research_build（子代理派单闭环做 web 调研，证据行合同与 outline 引用覆盖门同源，产出 底稿/调研.md）。基建取 aivideo-core（runner 五段真源）。",
+  "description": "通用主题式深度调研 DSH 插件：research(topic) 唯一入口（主题进报告出，零宿主概念——子代理自分解研究线→web 检索取证→自检补漏→合成带来源完整报告交回调用方）。搜索 provider 读宿主 web seam；基建取 aivideo-core（runner 五段真源）。",
   "main": "src/cordis.ts",
   "files": [
     "src",
