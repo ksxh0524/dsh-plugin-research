@@ -30,15 +30,13 @@
   <rect x="300" y="26" width="260" height="46" rx="23" fill="#3b6fd4"/>
   <text x="430" y="55" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">research(topic, fetch_sources?)</text>
 
-  <!-- D1 主题 -->
-  <line x1="430" y1="72" x2="430" y2="100" class="edge"/>
-  <polygon points="315,132 430,100 545,132 430,164" fill="#fff8e1" stroke="#c9a22b" stroke-width="1.6"/>
-  <text x="430" y="138" text-anchor="middle" class="tg" font-size="14">主题为空？</text>
-  <line x1="545" y1="132" x2="876" y2="132" class="edgeR"/>
-  <rect x="880" y="110" width="330" height="44" rx="8" class="err"/>
-  <text x="1045" y="138" text-anchor="middle" class="te">fail：请给 topic（主题句）</text>
-  <line x1="430" y1="164" x2="430" y2="194" class="edge"/>
-  <text x="443" y="184" class="lbl">非空</text>
+  <!-- topic 必填：schema 层已拦（不占主链门位） -->
+  <line x1="430" y1="72" x2="430" y2="190" class="edge"/>
+  <text x="447" y="122" class="lbl">topic 必填（schema required 已拦）</text>
+  <rect x="60" y="96" width="300" height="46" rx="8" fill="#f4f7f8" stroke="#90a4ae" stroke-width="1.3" stroke-dasharray="6 4"/>
+  <text x="210" y="114" text-anchor="middle" font-size="12" fill="#546e7a">空主题进不了引擎：工具 schema required 已拦</text>
+  <text x="210" y="132" text-anchor="middle" font-size="11.5" fill="#78909c">直连 engine 另有防御 throw（不占主链）</text>
+  <path d="M360,119 L424,126" stroke="#90a4ae" stroke-width="1.3" stroke-dasharray="5 4" fill="none" marker-end="url(#ar)"/>
 
   <!-- D2 provider -->
   <polygon points="315,226 430,194 545,226 430,258" fill="#fff8e1" stroke="#c9a22b" stroke-width="1.6"/>

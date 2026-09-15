@@ -25,9 +25,7 @@
 
 ```mermaid
 flowchart TD
-    A["research(topic, fetch_sources?)"] --> B{"主题为空？"}
-    B -- "为空" --> Z1["fail：请给 topic（主题句）"]
-    B -- "非空" --> C{"web seam 搜索 provider 可用？"}
+    A["research(topic, fetch_sources?)<br/>topic 必填——工具 schema required 已拦（直连 engine 空主题 = 防御 throw，不占主链）"] --> C{"web seam 搜索 provider 可用？"}
     C -- "无可用" --> Z2["error 收据：provider 不可用（不派单）"]
     C -- "多 provider 歧义 / 配置落空" --> Z3["error 收据：点名上报，不代选"]
     C -- "命中" --> D["路由解析（单路由 primary）<br/>config.routes &gt; 工作区 routes 键；皆无 = throw"]

@@ -25,9 +25,7 @@ Shape follows the generic deep-research references ([gpt-researcher](https://doc
 
 ```mermaid
 flowchart TD
-    A["research(topic, fetch_sources?)"] --> B{"topic empty?"}
-    B -- "empty" --> Z1["fail: please pass topic"]
-    B -- "non-empty" --> C{"web seam search provider available?"}
+    A["research(topic, fetch_sources?)<br/>topic required — rejected by the tool schema; direct engine calls hit the defensive throw (not on the main chain)"] --> C{"web seam search provider available?"}
     C -- "none" --> Z2["error receipt: provider unavailable (no dispatch)"]
     C -- "ambiguous / config miss" --> Z3["error receipt: named report, never silently resolved"]
     C -- "hit" --> D["route resolution (single-route primary)<br/>config.routes &gt; workspace routes key; none = throw"]
