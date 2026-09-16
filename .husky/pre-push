@@ -1,2 +1,3 @@
 # 全量行为验证：node --test（fixture 口径；真实 web 调研链路不进单测——烧钱且不可重现）。
+# 格式化/类型检查已在 pre-commit 阻断，这里只兜底行为不回退。
 pnpm test || exit 1
