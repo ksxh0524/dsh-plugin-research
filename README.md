@@ -67,11 +67,11 @@ Key property: the three stages are **mutually blind sessions** (only frozen JSON
 
 ## Plugin config (model / thinking intensity)
 
-A **research config card** inside the host's Settings → Plugins section (the official plugin-settings position: server half `settings.installSection("research")` + browser half `settings.plugin.item` card with the same key — neither alone is visible):
+A **research config card** inside the host's Settings → Plugins section (the official plugin-settings position: server half `settings.installSection("research")` + browser half `settings.plugin.item` card with the same key — neither alone is visible). Its shape mirrors the host `PluginCard` (STANDARDS §4.1/§4.2): **collapsed into one row by default**, controls render only when expanded; **typing only stages a draft — saving is the single write point** (unsaved tag on the header, discard restores the baseline, an invalid draft blocks the save); a read-only host document disables the controls and says so; `Tag` / chevron come from the host `dsh-client-ui-primitives`.
 
 - **One shared config by default**: model (`provider/model`; empty = follow the workspace routes key) + thinking intensity (low/medium/high/xhigh; empty = follow the route declaration) — shared by the Researcher and Reviewer isolated stages;
 - **Advanced: split**: tick to split into Researcher (draft + revision round) and Reviewer blocks, each with its own model/thinking; empty fields fall back to the shared default;
-- Config persists in the host settings system (the `research` section of `~/.dsh/settings.yaml`; schemastery-validated, hot-published on change). Saved values apply to the next research call — no host restart needed. Precedence: **card config > patch-row routes > workspace routes key** (reviewer route defaults to the researcher route).
+- Config persists in the host settings system (the `research` section of `~/.dsh/settings.yaml`; schemastery-validated, hot-published on change). Once a save lands, values apply to the next research call — no host restart needed. Precedence: **card config > patch-row routes > workspace routes key** (reviewer route defaults to the researcher route).
 
 ## Config
 
@@ -88,5 +88,10 @@ Add the dependency and bundle name to the profile's `package.json`; the package 
 ## Browser E2E (UI verification)
 
 `pnpm check:browser` boots a disposable instance (isolated `DSH_HOME`, port 0) and drives
-headless Chrome through settings -> plugins -> the research card, asserting real DOM.
-Any browser-half change must pass it (STANDARDS section 5, dsh-check gate 8).
+headless Chrome through settings -> plugins -> expanding the research card, asserting real DOM:
+the card shell is an `<li>`, collapsed by default (no controls while collapsed), `aria-expanded` flips,
+labels are real `label[for]` associations, the draft state holds (unsaved tag / discard restores baseline /
+an invalid draft blocks the save), and saving is the single write point (it collapses after the Host settles,
+and reopening reads the new value back).
+Any browser-half change must pass it (STANDARDS §4.1/§4.2/§5; the static shape check is case 5 of
+dsh-check's `pluginStandardSuite`).
