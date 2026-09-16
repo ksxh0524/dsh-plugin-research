@@ -43,6 +43,8 @@ uiScenarioSuite({
           throw new Error("卡未渲染控件；body 文本=" + JSON.stringify((await dialog.locator(".rsch-body").first().innerText()).slice(0, 200)));
         });
         if ((await modelInput.count()) < 1) throw new Error("模型控件缺失");
+        // 模型框必须挂 datalist（配好的模型下拉直选；一次性实例可能零商，选项数不断言，只断接线）。
+        if ((await modelInput.getAttribute("list")) !== "rsch-model-list") throw new Error("模型框未挂 datalist——用户还得手填背诵 provider/model");
         // 真 label：宿主同款 htmlFor/id 关联（v2 是裸 span，读屏到此是无名控件）。
         const labelText = await dialog.locator('label[for="rsch-f-model"]').first().innerText();
         if (!labelText.includes("模型")) throw new Error(`label 未关联或文案缺失：${JSON.stringify(labelText)}`);

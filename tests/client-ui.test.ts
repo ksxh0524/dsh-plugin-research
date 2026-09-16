@@ -48,4 +48,7 @@ test("复用面与结构件：primitives 走 require，卡壳不退回平铺面�
   assert.ok(CSS_BLOCK.length > 500, "CSS 块定位失败（结构断言无对象）");
   assert.doesNotMatch(CSS_BLOCK, /height:100%[^}]*overflow:auto/, "根容器自开整页滚动面板 = 平铺常开形态");
   assert.match(CSS_BLOCK, /\.rsch-card\{[^}]*border-radius:16px/, "卡壳圆角未照宿主 .card 值（§4.1）");
+  assert.match(CLIENT, /list: "rsch-model-list"/, "模型框未挂 datalist（用户要下拉直选配好的模型，不是手填背诵）");
+  assert.match(CLIENT, /"datalist",\s+\{ id: "rsch-model-list" \}/, "模型 datalist 未渲染（三模型框共用一下拉源）");
+  assert.doesNotMatch(CLIENT, /当前生效：/, "静态“当前生效”瞎报回潮（发起会话不同值就不同，卡上显示不了）");
 });

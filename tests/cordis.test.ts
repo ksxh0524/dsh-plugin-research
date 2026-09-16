@@ -155,3 +155,45 @@ test("research execute：插件卡配置拆分双路由（settings 段 > patch r
     rmSync(ws, { recursive: true, force: true });
   }
 });
+
+test("listModels：多商聚合 + 去重 + 单商失败跳过（不连坐）", async () => {
+  const { ResearchConfigService } = await import("../src/cordis.ts");
+  const llm = {
+    listProviders: () => [{ id: "pa" }, { id: "pb" }, { id: "bad" }],
+    listModels: async (provider: string) => {
+      if (provider === "bad") throw new Error("429");
+      if (provider === "pa")
+        return [
+          { id: "m1", name: " Alpha " },
+          { id: "m1", name: "重复" },
+          { id: "", name: "空" },
+        ];
+      return [{ id: "m2", name: "" }];
+    },
+  };
+  const svc = new ResearchConfigService({ get: (name: string) => (name === "llm" ? llm : undefined) } as never, "/tmp/ws");
+  const out = (await svc.listModels(null)) as { models: Array<{ value: string; label: string }> };
+  assert.deepEqual(
+    out.models,
+    [
+      { value: "pa/m1", label: "Alpha（pa/m1）" },
+      { value: "pb/m2", label: "pb/m2" },
+    ],
+    "聚合去重、坏商跳过、无线名回落原值",
+  );
+});
+
+test("listModels：llm 面缺席中文抛（卡回退手填，不静默给空下拉）", async () => {
+  const { ResearchConfigService } = await import("../src/cordis.ts");
+  const svc = new ResearchConfigService({ get: () => undefined } as never, "/tmp/ws");
+  await assert.rejects(() => svc.listModels(null), /llm 服务缺席/u);
+});
+
+test("getConfig：workspaceRoute 字段退役（设置页不再静态瞎报生效路由）", async () => {
+  const { ResearchConfigService } = await import("../src/cordis.ts");
+  const svc = new ResearchConfigService({} as never, "/tmp/ws");
+  const out = (await svc.getConfig(null)) as Record<string, unknown>;
+  assert.ok(!("workspaceRoute" in out), "瞎报字段必须消失");
+  assert.ok(out.config && typeof out.config === "object", "配置仍在");
+  assert.equal(out.writable, true, "settings 缺席不误判只读");
+});

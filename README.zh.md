@@ -69,7 +69,7 @@ flowchart TD
 
 宿主「设置 → 插件」分区里的 **research 配置卡**（官方插件设置正位：服务端 `settings.installSection("research")` + 浏览器半 `settings.plugin.item` 同 key 卡，缺一隐身）。卡形态照宿主 `PluginCard` 同形（STANDARDS §4.1/§4.2）：**默认折叠成一行**，点开才渲染控件；**改输入只落草稿，保存是唯一写点**（未保存标记挂折叠头、「丢弃」回基线、非法草稿 block 保存）；宿主文档只读时禁用控件并说明；`Tag`/chevron 复用宿主 `dsh-client-ui-primitives`。
 
-- **默认一份配置**：模型（`provider/model` 二段式，留空 = 跟随工作区路由键）+ 思考强度（low/medium/high/xhigh，留空 = 跟随路由声明）——调研员与审查员两道隔离工序共用；
+- **默认一份配置**：模型（输入框带下拉：已配好的模型都在里面直接点，也可手填 `provider/model` 二段式；**留空 = 跟随**——调用时按发起会话所在工作区的路由表实时定，会话不同值就不同，卡上不显示具体值）+ 思考强度（low/medium/high/xhigh，留空 = 跟随路由声明）——调研员与审查员两道隔离工序共用；
 - **高级：分开配**：勾选后拆出调研员（初稿+修订轮）与审查员两块，各自模型/思考强度，留空字段回落默认配置；
 - 配置持久化归宿主 settings 系统（`~/.dsh/settings.yaml` 的 research 段，schemastery schema 校验，变更热推送）；保存落盘后对下一次 research 调用即生效，无需重启 host。优先级：**插件卡配置 > patch 行 routes > 工作区路由键**（审查员路由缺省 = 调研员同路由）。
 

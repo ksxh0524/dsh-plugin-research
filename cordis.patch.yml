@@ -6,5 +6,4 @@
 - insert:
     - id: dsh-plugin-research-main
       name: dsh-plugin-research
-      config:
-        workspace: /Volumes/DATA/AI视频/自动剪辑
+      config: {}

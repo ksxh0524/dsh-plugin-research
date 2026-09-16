@@ -21,7 +21,6 @@
 
 import z from "@deepseek-ai/schemastery";
 import { applyConfigPatch, defaultConfig, normalizeConfig, resolveResearchWorkspace, validateConfigPatch, type ResearchConfig } from "./config.ts";
-import { resolvePrimaryRoute } from "./engine.ts";
 import type { HostContext } from "./lib/host.ts";
 import { createResearchTools } from "./tools.ts";
 
@@ -79,17 +78,12 @@ export class ResearchConfigService {
     return (this.ctx as { get?(name: string): unknown }).get?.("settings") as SettingsFace | undefined;
   }
 
-  /** 读配置 + 附 UI 所需事实（workspaceRoute = 当前工作区路由缺省，供 placeholder；settingsSection = 宿主 settings 的段落名（宿主有意不暴露落盘路径，types.ts:69 实证）；writable = 宿主文档是否接受写，卡据此禁用控件）。 */
+  /** 读配置 + 附 UI 所需事实（settingsSection = 宿主 settings 的段落名；writable = 宿主文档是否接受写，卡据此禁用控件）。
+   *  注意：不返回“当前生效路由”——跟随语义在调用时按发起会话所在工作区实时解析，设置页静态算一个值出来就是瞎报
+   * （曾报 bundle 硬编码工作区的旧路由，已删；workspaceRoute 字段一并退役）。 */
   async getConfig(_hint: unknown) {
-    let workspaceRoute = "";
-    try {
-      const r = resolvePrimaryRoute(this.workspace, {});
-      workspaceRoute = `${r.provider}/${r.model}${r.thinkingLevel ? `/${r.thinkingLevel}` : ""}`;
-    } catch {
-      /* 工作区路由键缺位：placeholder 走通用提示，不抛 */
-    }
     const settings = this.settingsFace();
-    return { config: this.source(), workspaceRoute, settingsSection: RESEARCH_SETTINGS_NAMESPACE, writable: settings?.writable !== false };
+    return { config: this.source(), settingsSection: RESEARCH_SETTINGS_NAMESPACE, writable: settings?.writable !== false };
   }
 
   /** 写配置：patch 归一化 + 形状预检 → 宿主 settings.replace（schema 校验/持久化 settings.yaml/热推送）。
@@ -103,6 +97,42 @@ export class ResearchConfigService {
     await settings.replace(RESEARCH_SETTINGS_NAMESPACE, next);
     return next;
   }
+
+  /** 模型下拉数据源：已注册 provider（= 配好的服务商）逐家取目录，值 "provider/id" 与校验口径一致；
+   *  单家失败跳过不连坐；llm 面缺席 = 抛（卡回退手填，不静默给空下拉）。 */
+  async listModels(_hint: unknown) {
+    const llm = (this.ctx as { get?(name: string): unknown }).get?.("llm") as
+      | {
+          listProviders?: () => Array<{ id?: unknown }>;
+          listModels?: (provider: string) => Promise<Array<{ id?: unknown; name?: unknown }>>;
+        }
+      | undefined;
+    if (!llm || typeof llm.listProviders !== "function" || typeof llm.listModels !== "function") {
+      throw new Error("宿主 llm 服务缺席：模型下拉无数据源（改走手填 provider/model）");
+    }
+    const models: Array<{ value: string; label: string }> = [];
+    const seen = new Set<string>();
+    for (const p of llm.listProviders()) {
+      const provider = typeof p?.id === "string" ? p.id : "";
+      if (!provider) continue;
+      let entries: Array<{ id?: unknown; name?: unknown }> = [];
+      try {
+        entries = await llm.listModels(provider);
+      } catch {
+        continue;
+      }
+      for (const m of entries ?? []) {
+        const id = typeof m?.id === "string" ? m.id : "";
+        if (!id) continue;
+        const value = `${provider}/${id}`;
+        if (seen.has(value)) continue;
+        seen.add(value);
+        const name = typeof m?.name === "string" ? m.name.trim() : "";
+        models.push({ value, label: name && name !== id ? `${name}（${value}）` : value });
+      }
+    }
+    return { models };
+  }
 }
 
 /** 手写 SRC Remote 标记（形态 = typert-protocol mark() 产物：{version:1, methods:[...]}）。 */
@@ -114,6 +144,7 @@ Object.defineProperty(ResearchConfigService.prototype, REMOTE_METHODS_KEY, {
     methods: Object.freeze([
       Object.freeze({ method: "getConfig", invocation: Object.freeze({ kind: "direct" }) }),
       Object.freeze({ method: "setConfig", invocation: Object.freeze({ kind: "direct" }) }),
+      Object.freeze({ method: "listModels", invocation: Object.freeze({ kind: "direct" }) }),
     ]),
   }),
 });
