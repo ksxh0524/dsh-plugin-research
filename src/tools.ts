@@ -79,7 +79,7 @@ function makeResearchTool(spec: {
       }
       const dispatch = makeDshDispatch(spec.ctx, exec?.agent);
       if (!dispatch) return { verdict: "error", summary: "宿主无 subagents 派单通道：调研员会话无法建立", details: {} };
-      // 插件卡配置（宿主 settings 段 research）> patch 行 routes > 工作区路由键；审查员路由缺省 = 调研员同路由
+      // 插件卡配置（宿主 settings 段 research）> patch 行 routes > 发起会话模型（缺省跟随主会话）> 工作区路由键；审查员路由缺省 = 调研员同路由
       let routes: unknown = spec.routes;
       let reviewRoutes: unknown = undefined;
       const cfg = spec.readConfig ? spec.readConfig() : defaultConfig();
@@ -87,6 +87,12 @@ function makeResearchTool(spec: {
       if (eff.researcher) {
         routes = [eff.researcher];
         reviewRoutes = eff.reviewer ? [eff.reviewer] : undefined;
+      }
+      if (!routes) {
+        const caller = (exec as { agent?: { options?: { provider?: unknown; model?: unknown } } } | undefined)?.agent?.options;
+        const provider = typeof caller?.provider === "string" ? caller.provider.trim() : "";
+        const model = typeof caller?.model === "string" ? caller.model.trim() : "";
+        if (provider && model) routes = [{ provider, model }];
       }
       const out = await runResearch(
         { topic: args?.topic, fetchSources: args?.fetch_sources, routes, reviewRoutes, routeKey: spec.routeKey },

@@ -197,3 +197,31 @@ test("getConfig：workspaceRoute 字段退役（设置页不再静态瞎报生�
   assert.ok(out.config && typeof out.config === "object", "配置仍在");
   assert.equal(out.writable, true, "settings 缺席不误判只读");
 });
+
+test("research execute：空配置跟随主会话（exec.agent.options 直供路由，不读工作区键）", async () => {
+  const ws = mkdtempSync(join(tmpdir(), "rsch-follow-"));
+  try {
+    const starts: Array<{ agentOptions: { provider?: string; model?: string; reasoningEffort?: string }; label: string }> = [];
+    const scripted = [DELIVERY, REVIEW_PASS];
+    const ctx = {
+      subagents: {
+        start: (_kind: string, request: { agentOptions: { provider?: string; model?: string; reasoningEffort?: string }; label: string }) => {
+          starts.push(request);
+          return { result: Promise.resolve({ stopReason: "completed", structured: scripted[starts.length - 1] ?? null }) };
+        },
+      },
+      web: { searchProviders: new Map([["exa", { id: "exa", available: () => true }]]) },
+      logger: { info: () => undefined },
+    } as never;
+    const readConfig = () => ({ model: "", thinking: "", split: false, researchModel: "", researchThinking: "", reviewModel: "", reviewThinking: "" });
+    const tools = createResearchTools({ workspace: ws, readConfig, ctx }) as unknown as ResearchTool[];
+    const exec = { agent: { options: { provider: "caller-p", model: "caller-m" }, session: { meta: { cwd: ws } } } };
+    const out = await tools[0].execute({ topic: "跟随主会话" }, exec);
+    assert.equal(out.verdict, "pass");
+    assert.equal(starts[0].agentOptions.provider, "caller-p", "空配置调研员路由 = 发起会话模型");
+    assert.equal(starts[0].agentOptions.model, "caller-m");
+    assert.equal(starts[1].agentOptions.provider, "caller-p", "不拆分审查员同路由");
+  } finally {
+    rmSync(ws, { recursive: true, force: true });
+  }
+});

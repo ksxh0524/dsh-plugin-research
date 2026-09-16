@@ -51,4 +51,6 @@ test("复用面与结构件：primitives 走 require，卡壳不退回平铺面�
   assert.match(CLIENT, /list: "rsch-model-list"/, "模型框未挂 datalist（用户要下拉直选配好的模型，不是手填背诵）");
   assert.match(CLIENT, /"datalist",\s+\{ id: "rsch-model-list" \}/, "模型 datalist 未渲染（三模型框共用一下拉源）");
   assert.doesNotMatch(CLIENT, /当前生效：/, "静态“当前生效”瞎报回潮（发起会话不同值就不同，卡上显示不了）");
+  assert.match(CLIENT, /留空 = 跟随主会话/, "模型 hint 必须一句话（废话注脚已删，不许复生）");
+  assert.doesNotMatch(CLIENT, /保存后对下一次/, "footer 废话注脚回潮（用户：删掉的别回来）");
 });
