@@ -16,7 +16,7 @@
  * 它是被宿主按数据消费的 schema 库（无 Service 原型语义），插件自装同包实例安全（官方插件同款姿势）。
  * SRC 模式参数约束：方法参数 = 不带默认值/解构/rest 的单一标识符（`: unknown` strip 后空白可安全携带）。
  * 两端契约：lib/client.js 的 descriptor（方法名+参数名+sourceLocation）与本文件隐式配对，
- * 改任何一端必须跑 tests/contract-pair.test.ts。
+ * 由 dsh-check 的 contractPairSuite 当场抓住（注册位 tests/standard.test.ts；改名/挪行/签名形变三向漂移各自红灯）。
  */
 
 import z from "@deepseek-ai/schemastery";
@@ -52,10 +52,12 @@ export const RESEARCH_SETTINGS_SCHEMA = z.object({
   reviewThinking: z.string(),
 });
 
-/** 宿主 settings 面窄脸（agent-default-model 同款读写位：installSection 注册段 / replace 写值）。 */
+/** 宿主 settings 面窄脸（agent-default-model 同款读写位：installSection 注册段 / replace 写值 / writable 只读判定）。 */
 interface SettingsFace {
   installSection?(owner: unknown, ns: string, schema: unknown, entry: unknown, hooks: unknown): void;
   replace?(ns: string, value: unknown): Promise<void> | void;
+  /** 宿主文档是否接受写（只读文档时插件卡必须禁用控件并说明，不能让用户敲完才报错——STANDARDS §4.2）。 */
+  writable?: boolean;
 }
 
 /** 配置服务（插件卡 Remote：getConfig/setConfig；live 配置由 installSection setSource 回灌）。 */
@@ -77,7 +79,7 @@ export class ResearchConfigService {
     return (this.ctx as { get?(name: string): unknown }).get?.("settings") as SettingsFace | undefined;
   }
 
-  /** 读配置 + 附 UI 所需事实（workspaceRoute = 当前工作区路由缺省，供 placeholder；settingsSection = 宿主 settings 的段落名（宿主有意不暴露落盘路径，types.ts:69 实证））。 */
+  /** 读配置 + 附 UI 所需事实（workspaceRoute = 当前工作区路由缺省，供 placeholder；settingsSection = 宿主 settings 的段落名（宿主有意不暴露落盘路径，types.ts:69 实证）；writable = 宿主文档是否接受写，卡据此禁用控件）。 */
   async getConfig(_hint: unknown) {
     let workspaceRoute = "";
     try {
@@ -86,7 +88,8 @@ export class ResearchConfigService {
     } catch {
       /* 工作区路由键缺位：placeholder 走通用提示，不抛 */
     }
-    return { config: this.source(), workspaceRoute, settingsSection: RESEARCH_SETTINGS_NAMESPACE };
+    const settings = this.settingsFace();
+    return { config: this.source(), workspaceRoute, settingsSection: RESEARCH_SETTINGS_NAMESPACE, writable: settings?.writable !== false };
   }
 
   /** 写配置：patch 归一化 + 形状预检 → 宿主 settings.replace（schema 校验/持久化 settings.yaml/热推送）。
