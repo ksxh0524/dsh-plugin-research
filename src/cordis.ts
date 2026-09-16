@@ -6,7 +6,7 @@
  *    官方插件设置的正位——宿主设置页「插件」分区按 served namespace ∩ settings.plugin.item 卡派发，
  *    值落 ~/.dsh/settings.yaml 热推送；官方样板 = dsh-agent-default-model 的 agent-default-model 段）。
  *
- * inject 声明 tools/subagents/web（仅可等待服务；reflect/settings 用 ctx 可选链 + 运行时 ctx.inject）；config 由 bundle patch 行注入（workspace/routeKey/routes；
+ * inject 声明 llm/tools/subagents/web（仅可等待服务；reflect/settings 用 ctx 可选链 + 运行时 ctx.inject）；config 由 bundle patch 行注入（workspace/routeKey/routes；
  * patch 行整体替换目标 config，所有键都要在 patch 行重述）。无 guard 挂点：调研编排自身是唯一写者。
  *
  * 零依赖铁律（勿改 import 官方协议包）：本包运行在宿主 node 进程里但被 pnpm 链接在文件目录下，import
@@ -26,9 +26,10 @@ import { createResearchTools } from "./tools.ts";
 
 export const name = "dsh-plugin-research";
 
-/** 插件级 inject = apply 前必须就位的宿主服务面（仅这三家；reflect 是 ctx 随身面、settings 走
- *  运行时 ctx.inject 延迟解析——两者写进插件级等待面会让 loader 等一个不存在的服务，boot 卡死）。 */
-export const inject = ["tools", "subagents", "web"];
+/** 插件级 inject = apply 前必须就位的宿主服务面（llm 是 listModels 下拉数据源，core 服务必在，
+ *  governor 同款；reflect 是 ctx 随身面、settings 走运行时 ctx.inject 延迟解析——两者写进插件级
+ *  等待面会让 loader 等一个不存在的服务，boot 卡死）。 */
+export const inject = ["llm", "tools", "subagents", "web"];
 
 /** bundle 行 config 形（cordis.patch.yml 的 config 段与此对齐）。 */
 export type CordisConfig = {
