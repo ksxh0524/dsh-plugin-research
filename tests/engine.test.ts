@@ -2,9 +2,9 @@
  *
  * dispatch 注入点隔离（不烧钱、不真派）；runner 五段照跑（合同段预检 + validate + nudge 真语义）。
  * 工序链：初稿（调研员）→ 引擎门 → 审查（审查员 issue 清单）→ 一致性门 →（fix? 修订轮）→ 终稿门。
- * 路由：未配 routes = 宿主默认派单（空 provider/model，runner 不发 agentOptions；按任务选模已摘除）；
- * 工作区定位由 src/workspace.ts 自有 helper 承担（env AV_WORKSPACE > .av/workspace.json 锚向上找，两级单测在本文件末尾）。
- * 宿主概念（project/留档/证据行）已摘除——主题进、报告出，零文件 IO。
+ * 路由：未配 routes = DSH 默认派单（空 provider/model，runner 不发 agentOptions；按任务选模已摘除）；
+ * 工作区定位由 src/workspace.ts 自有 helper 承担（env AUTOVIDEO_WORKSPACE > autovideo/workspace.json 锚向上找，两级单测在本文件末尾）。
+ * DSH 概念（project/留档/证据行）已摘除——主题进、报告出，零文件 IO。
  */
 
 import assert from "node:assert/strict";
@@ -390,15 +390,15 @@ test("resolvePrimaryRoute：config.routes 显式第一优先（多给忽略，th
   }
 });
 
-test("resolveWorkspaceRoot：env AV_WORKSPACE 优先；无 env 时向上找 .av/workspace.json 锚；皆无抛错给出路", () => {
+test("resolveWorkspaceRoot：env AUTOVIDEO_WORKSPACE 优先；无 env 时向上找 autovideo/workspace.json 锚；皆无抛错给出路", () => {
   const root = makeWs();
   try {
-    mkdirSync(join(root, ".av"), { recursive: true });
-    writeFileSync(join(root, ".av", "workspace.json"), JSON.stringify({ kind: "auto-cut" }));
+    mkdirSync(join(root, "autovideo"), { recursive: true });
+    writeFileSync(join(root, "autovideo", "workspace.json"), JSON.stringify({ kind: "auto-cut" }));
     const nested = join(root, "a", "b");
     mkdirSync(nested, { recursive: true });
     assert.equal(resolveWorkspaceRoot(nested, {}), root, "无 env 时向上找中性锚");
-    assert.equal(resolveWorkspaceRoot(nested, { AV_WORKSPACE: "/tmp/env-ws" }), resolve("/tmp/env-ws"), "env 优先于锚");
+    assert.equal(resolveWorkspaceRoot(nested, { AUTOVIDEO_WORKSPACE: "/tmp/env-ws" }), resolve("/tmp/env-ws"), "env 优先于锚");
     const bare = makeWs();
     try {
       assert.throws(() => resolveWorkspaceRoot(bare, {}), /工作区未找到/, "无 env 无锚 = fail-loud，报错给出路");
