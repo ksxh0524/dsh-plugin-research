@@ -28,7 +28,7 @@ flowchart TD
     A["research(topic, fetch_sources?)<br/>topic 必填——工具 schema required 已拦（直连 engine 空主题 = 防御 throw，不占主链）"] --> C{"web seam 搜索 provider 可用？"}
     C -- "无可用" --> Z2["error 收据：provider 不可用（不派单）"]
     C -- "多 provider 歧义 / 配置落空" --> Z3["error 收据：点名上报，不代选"]
-    C -- "命中" --> D["路由解析（单路由 primary）<br/>config.routes &gt; 发起会话模型；皆无 = 宿主默认派单"]
+    C -- "命中" --> D["路由解析（单路由，只取第一条）<br/>插件卡配置 &gt; patch 行 routes &gt; 发起会话模型；皆无 = 宿主默认派单（不抛错）<br/>审查员缺省同调研员路由"]
     D --> E["开账本信封（skill=researcher，tool=research）"]
     E --> S1["工序① 调研员 Researcher（隔离会话）<br/>主题详略自判 → 规划 4-8 条研究线<br/>→ web_search/web_fetch 检索取证<br/>→ 逐源交叉比对 + 全量打标（可靠性五档/单一来源/佐证编号）→ 初稿"]
     S1 -- "structured 缺失" --> N1{"nudge ×1"}
