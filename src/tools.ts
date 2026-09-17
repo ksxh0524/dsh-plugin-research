@@ -15,7 +15,7 @@
  */
 
 import { defineTool } from "@deepseek-ai/dsh-tools";
-import { makeDshDispatch } from "aivideo-core/src/subagent/runner.ts";
+import { makeDshDispatch } from "./runner.ts";
 import { defaultConfig, effectiveRoutes, resolveResearchWorkspace, type ResearchConfig } from "./config.ts";
 import { runResearch } from "./engine.ts";
 import type { HostContext, ToolExec } from "./lib/host.ts";
@@ -79,7 +79,7 @@ function makeResearchTool(spec: {
       }
       const dispatch = makeDshDispatch(spec.ctx, exec?.agent);
       if (!dispatch) return { verdict: "error", summary: "宿主无 subagents 派单通道：调研员会话无法建立", details: {} };
-      // 插件卡配置（宿主 settings 段 research）> patch 行 routes > 发起会话模型（缺省跟随主会话）> 工作区路由键；审查员路由缺省 = 调研员同路由
+      // 插件卡配置（宿主 settings 段 research）> patch 行 routes > 发起会话模型（缺省跟随主会话）> 宿主默认派单；审查员路由缺省 = 调研员同路由
       let routes: unknown = spec.routes;
       let reviewRoutes: unknown = undefined;
       const cfg = spec.readConfig ? spec.readConfig() : defaultConfig();

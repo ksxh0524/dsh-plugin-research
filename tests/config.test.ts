@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applyConfigPatch, defaultConfig, effectiveRoutes, normalizeConfig, validateConfigPatch } from "../src/config.ts";
 
-test("缺省配置：全空（跟随工作区路由），split=false", () => {
+test("缺省配置：全空（走宿主默认派单），split=false", () => {
   assert.deepEqual(defaultConfig(), { model: "", thinking: "", split: false, researchModel: "", researchThinking: "", reviewModel: "", reviewThinking: "" });
 });
 
@@ -54,5 +54,5 @@ test("effectiveRoutes：默认共用一份；split 拆双角色；空覆盖字�
   assert.deepEqual(eff.researcher, { provider: "p", model: "shared", thinkingLevel: "high" });
   assert.deepEqual(eff.reviewer, { provider: "p", model: "shared", thinkingLevel: "high" }, "拆分但未填 = 回落默认");
 
-  assert.deepEqual(effectiveRoutes({ ...shared, model: "" }).researcher, null, "默认链也空 = 未配（跟随工作区路由键）");
+  assert.deepEqual(effectiveRoutes({ ...shared, model: "" }).researcher, null, "默认链也空 = 未配（走宿主默认派单）");
 });

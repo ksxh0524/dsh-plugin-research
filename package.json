@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "通用主题式深度调研 DSH 插件：research(topic) 唯一入口（主题进报告出，零宿主概念——子代理自分解研究线→web 检索取证→自检补漏→合成带来源完整报告交回调用方）。搜索 provider 读宿主 web seam；基建取 aivideo-core（runner 五段真源）。",
+  "description": "通用主题式深度调研 DSH 插件：research(topic) 唯一入口（主题进报告出，零宿主概念——子代理自分解研究线→web 检索取证→自检补漏→合成带来源完整报告交回调用方）。搜索 provider 读宿主 web seam；派单走宿主默认模型（本包 src/runner.ts 自有），账本格式归 dsh-plugin-ledger（在建）。",
   "main": "src/cordis.ts",
   "files": [
     "src",
@@ -27,7 +27,6 @@
     }
   },
   "dependencies": {
-    "aivideo-core": "link:../autovideo/aivideo-core",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
     "@deepseek-ai/schemastery": "^3.18.2"
   },

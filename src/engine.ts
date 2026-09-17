@@ -12,14 +12,14 @@
  *   工序3（条件）：verdict=fix → 退回调研员修订轮（隔离会话，拿初稿+issues 重新调研补足）→ 终稿；
  *   ——引擎代码门（终稿，pass/fix 都过）：实质线 + 来源标注完整性（清单行逐行〔可靠性：五档〕、
  *   单源事实必标〔单一来源〕、corroboration 引用存在）+ fetch_sources 拉取门——任一不过即拒。
- * **单路由口径**（2026-09-15 拍板：fallback 暂不写）。账本：openSession/finishSession 信封
- * （skill=researcher，tool=research，fail-open）。
+ * **单路由口径**（2026-09-15 拍板：fallback 暂不写；按任务选模已摘除，未配 routes 走宿主默认派单）。
+ * 账本：openSession/finishSession 信封（skill=researcher，tool=research，fail-open；本包 src/session.ts 自有薄写层）。
+ * 派单基建：本包 src/runner.ts 自有真源（默认路由空 provider/model 时不发 agentOptions，走宿主默认模型）。
  */
 
 import { performance } from "node:perf_hooks";
-import { runSubagentTask, type RouteSpec, type RunToLedger, type SubagentDispatch } from "aivideo-core/src/subagent/runner.ts";
-import { getTaskSpecSync } from "aivideo-core/src/router/index.ts";
-import { finishSession, openSession, type SessionHandle } from "aivideo-core/src/ledger/session-ledger.ts";
+import { runSubagentTask, type RouteSpec, type RunToLedger, type SubagentDispatch } from "./runner.ts";
+import { finishSession, openSession, type SessionHandle } from "./session.ts";
 import {
   RESEARCH_DELIVERY_SCHEMA,
   REVIEW_DELIVERY_SCHEMA,
@@ -47,23 +47,12 @@ export type ResearchReceipt = {
   details: Record<string, JsonValue>;
 };
 
-/** "provider/model" 二段式解析（工作区 routes 的 primary 形态；非法回 null）。 */
-function parseRouteRef(ref: string, thinking?: string): RouteInput | null {
-  const i = ref.indexOf("/");
-  if (i <= 0) return null;
-  const provider = ref.slice(0, i).trim();
-  const model = ref.slice(i + 1).trim();
-  if (!provider || !model) return null;
-  return thinking ? { provider, model, thinkingLevel: thinking } : { provider, model };
-}
-
-/**
- * 主路由解析（**单路由口径**——2026-09-15 用户拍板 fallback 暂不写）：
+/** 主路由解析（**单路由口径**——2026-09-15 用户拍板 fallback 暂不写；按任务选模已摘除）：
  * ① config.routes 显式——只取第一条（多给的忽略）；
- * ② 工作区 routes 文件键（getTaskSpecSync 三级回落，缺省键 content-writer.researcher）的 primary；
- * ③ 皆无 → 抛（fail-loud，不猜路由）。
+ * ② 皆无 → 宿主默认派单（空 provider/model，runner 不发 agentOptions）。
+ * routeKey 保留兼容（调用方仍可传），实际不再读工作区路由表。
  */
-export function resolvePrimaryRoute(ws: string, opts: { routes?: unknown; routeKey?: string }): RouteInput {
+export function resolvePrimaryRoute(_ws: string, opts: { routes?: unknown; routeKey?: string }): RouteInput {
   const explicit = Array.isArray(opts.routes) ? (opts.routes[0] as Record<string, unknown> | undefined) : undefined;
   if (explicit && typeof explicit.provider === "string" && typeof explicit.model === "string") {
     const provider = explicit.provider.trim();
@@ -73,14 +62,7 @@ export function resolvePrimaryRoute(ws: string, opts: { routes?: unknown; routeK
       return thinking ? { provider, model, thinkingLevel: thinking } : { provider, model };
     }
   }
-  const key = opts.routeKey?.trim() || "content-writer.researcher";
-  const spec = getTaskSpecSync(ws, key) as { primary?: unknown; thinking?: unknown } | null;
-  if (spec && typeof spec.primary === "string") {
-    const thinking = typeof spec.thinking === "string" && spec.thinking.trim() ? spec.thinking.trim() : undefined;
-    const parsed = parseRouteRef(spec.primary, thinking);
-    if (parsed) return parsed;
-  }
-  throw new Error(`research 路由缺位：config.routes 未配且工作区 routes 无键「${key}」（profile patch 行或工作区路由表二选一配 primary）`);
+  return { provider: "", model: "" };
 }
 
 const REPORT_FORMAT_BLOCK = [
@@ -247,7 +229,7 @@ export type ResearchRequest = {
   strands?: string[];
   /** 拉取来源全文（可选层，缺省 false；审查员/修订轮拉全文随报告附回）。 */
   fetchSources?: unknown;
-  /** 调研员路由（工序①③；显式 > 工作区路由键）。 */
+  /** 调研员路由（工序①③；显式 > 宿主默认派单）。 */
   routes?: unknown;
   /** 审查员路由（工序②专用；缺省 = 与调研员同路由——UI「高级：分开配」才给）。 */
   reviewRoutes?: unknown;
@@ -297,9 +279,9 @@ export async function runResearch(req: ResearchRequest, deps: ResearchDeps): Pro
     const rt = typeof reviewExplicit.thinkingLevel === "string" ? reviewExplicit.thinkingLevel.trim() : "";
     reviewSpec = { provider: reviewExplicit.provider.trim(), model: reviewExplicit.model.trim(), ...(rt ? { thinkingLevel: rt } : {}) };
   }
-  say?.(
-    `[research] 路由 ${route.provider}/${route.model}（单路由口径${reviewSpec === routeSpec ? "" : `；审查员 ${reviewSpec.provider}/${reviewSpec.model}`}）`,
-  );
+  const routeLabel = route.provider && route.model ? `${route.provider}/${route.model}` : "宿主默认模型";
+  const reviewLabel = reviewSpec.provider && reviewSpec.model ? `${reviewSpec.provider}/${reviewSpec.model}` : "宿主默认模型";
+  say?.(`[research] 路由 ${routeLabel}（单路由口径${reviewSpec === routeSpec ? "" : `；审查员 ${reviewLabel}`}）`);
   // ④ caseId + 账本信封（三工序共用同一信封，attempt 记录自然分笔）
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/gu, "");
   const caseId = String(req.caseId ?? "").trim() || `research-${stamp}`;

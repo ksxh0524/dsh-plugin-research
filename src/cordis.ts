@@ -65,7 +65,7 @@ export class ResearchConfigService {
   ctx: HostContext;
   workspace: string;
   typertRemote: { service: ResearchConfigService; serviceKey: string; namespace: string };
-  /** 当前生效配置（installSection 回灌的 live 闭包；settings 面缺席 = 空配置——完全跟随工作区路由）。 */
+  /** 当前生效配置（installSection 回灌的 live 闭包；settings 面缺席 = 空配置——走宿主默认派单）。 */
   source: () => ResearchConfig;
 
   constructor(ctx: HostContext, workspace: string) {

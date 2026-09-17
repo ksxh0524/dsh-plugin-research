@@ -6,22 +6,22 @@
  *   本文件不做文件 IO——v0.5.0 初版的手搓 JSON 文件路径随宿主 settings 方案退场（未发布无存量，无迁移负担）。
  * - 本文件只留：配置类型、空配置缺省、UI 配置 → 引擎路由的拆分链（roleRoute/effectiveRoutes）。
  * - 写入校验交给宿主 settings schema（schemastery，见 cordis.ts RESEARCH_SETTINGS_SCHEMA）——replace fail-loud。
- * - 模型字段 = "provider/model" 二段式（与 RouteInput 同形）；空串 = 跟随工作区路由键
- *   （现状行为，配置面永远可选不填）。
+ * - 模型字段 = "provider/model" 二段式（与 RouteInput 同形）；空串 = 走宿主默认派单
+ *   （未配 routes 时 runner 不发 agentOptions）。
  * - 思考强度枚举 = ""（跟随工作区）+ low|medium|high|xhigh（runner 原样透传 reasoningEffort）。
  */
-import { findAutomationWorkspace } from "aivideo-core/src/project/index.ts";
+import { resolveWorkspaceRoot } from "./workspace.ts";
 import { join } from "node:path";
 import type { RouteInput } from "./engine.ts";
 import type { ToolExec } from "./lib/host.ts";
 
-/** 思考强度可选档（"" = 跟随工作区路由声明）。 */
+/** 思考强度可选档（"" = 宿主默认档）。 */
 export const THINKING_LEVELS = ["low", "medium", "high", "xhigh"] as const;
 
 export type ResearchConfig = {
-  /** 默认模型（"provider/model"）；空 = 两角色都跟随工作区路由键。 */
+  /** 默认模型（"provider/model"）；空 = 两角色都走宿主默认派单。 */
   model: string;
-  /** 默认思考强度；空 = 跟随工作区路由声明。 */
+  /** 默认思考强度；空 = 宿主默认档。 */
   thinking: string;
   /** 高级：Research / Review 分开配（false = 两角色共用 model/thinking）。 */
   split: boolean;
@@ -33,7 +33,7 @@ export type ResearchConfig = {
   reviewThinking: string;
 };
 
-/** 空配置：全空 = 完全跟随工作区路由（现状行为，插件卡装出来就是这个态）。 */
+/** 空配置：全空 = 完全走宿主默认派单（插件卡装出来就是这个态）。 */
 export function defaultConfig(): ResearchConfig {
   return { model: "", thinking: "", split: false, researchModel: "", researchThinking: "", reviewModel: "", reviewThinking: "" };
 }
@@ -118,7 +118,7 @@ export function normalizeConfig(value: unknown): ResearchConfig {
   };
 }
 
-/** 生效路由（UI 配置 → 引擎输入）：researcher 供工序①③，reviewer 供工序②；未配 = null（跟随工作区路由键）。 */
+/** 生效路由（UI 配置 → 引擎输入）：researcher 供工序①③，reviewer 供工序②；未配 = null（走宿主默认派单）。 */
 export function effectiveRoutes(cfg: ResearchConfig): { researcher: RouteInput | null; reviewer: RouteInput | null } {
   return { researcher: roleRoute(cfg, "research"), reviewer: roleRoute(cfg, "review") };
 }
@@ -129,8 +129,7 @@ export function resolveResearchWorkspace(exec: ToolExec | undefined, configWorks
   if (configWorkspace) return configWorkspace;
   const cwd = String(exec?.agent?.session?.meta?.cwd ?? exec?.agent?.session?.header?.cwd ?? process.cwd());
   try {
-    const anchored = findAutomationWorkspace(cwd);
-    if (anchored) return anchored;
+    return resolveWorkspaceRoot(cwd);
   } catch {
     /* 无锚：回落 cwd 本身 */
   }

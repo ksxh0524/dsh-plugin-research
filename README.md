@@ -12,8 +12,8 @@ Shape follows the generic deep-research references ([gpt-researcher](https://doc
 - Fetch gate: when `fetch_sources=true`, an empty `sources[]` fails the gate; `content` absent = fetch failed (reported honestly, never fabricated).
 - Content gate: report must reach the substance floor (`REPORT_MIN_CHARS`), fact URLs must parse, `completed` requires facts, facts and open_questions must not both be empty.
 - Search provider: read from the host **web seam** (`ctx.web`) — whichever provider the profile configures (exa / deepseek) is the one used; explicit-config-miss and multi-provider ambiguity are reported honestly, never silently resolved.
-- Routing: **single route** (primary only — fallback deliberately not enabled for now). Source: `config.routes[0]` > workspace routes key (default `content-writer.researcher`) > fail-loud. `workspace` is cordis config (route resolution), not a call parameter.
-- Shared infrastructure comes from `aivideo-core` via `link:../aivideo-core` (the five-stage subagent runner true source).
+- Routing: **single route** (primary only — fallback deliberately not enabled for now). Source: `config.routes[0]` > calling-session model > host default dispatch (empty provider/model — the runner omits `agentOptions`). `workspace` is cordis config (route resolution), not a call parameter.
+- Dispatch infrastructure is owned by this package (`src/runner.ts`, the five-stage subagent runner); the ledger envelope format belongs to dsh-plugin-ledger (in progress).
 - Project-side archiving (evidence rows into `底稿/调研.md` for the outline citation gate) is **not** this plugin's business — the writing cluster wraps this engine in its own repo (planned).
 
 ## Pipeline
@@ -28,7 +28,7 @@ flowchart TD
     A["research(topic, fetch_sources?)<br/>topic required — rejected by the tool schema; direct engine calls hit the defensive throw (not on the main chain)"] --> C{"web seam search provider available?"}
     C -- "none" --> Z2["error receipt: provider unavailable (no dispatch)"]
     C -- "ambiguous / config miss" --> Z3["error receipt: named report, never silently resolved"]
-    C -- "hit" --> D["route resolution (single-route primary)<br/>config.routes &gt; workspace routes key; none = throw"]
+    C -- "hit" --> D["route resolution (single-route primary)<br/>config.routes &gt; calling-session model; none = host default"]
     D --> E["open ledger envelope (skill=researcher, tool=research)"]
     E --> S1["Stage 1 Researcher (isolated session)<br/>self-judge topic detail → plan 4-8 strands<br/>→ web_search/web_fetch passes<br/>→ cross-check every source + tag all (reliability tiers / single-source / corroboration) → draft"]
     S1 -- "structured missing" --> N1{"nudge ×1"}
@@ -71,7 +71,7 @@ A **research config card** inside the host's Settings → Plugins section (the o
 
 - **One shared config by default**: model (the box has a dropdown — every configured model is one click away, or type `provider/model` by hand; **empty = follow the calling session**) + thinking intensity (low/medium/high/xhigh; empty = host default) — shared by the Researcher and Reviewer isolated stages;
 - **Advanced: split**: tick to split into Researcher (draft + revision round) and Reviewer blocks, each with its own model/thinking; empty fields fall back to the shared default;
-- Config persists in the host settings system (the `research` section of `~/.dsh/settings.yaml`; schemastery-validated, hot-published on change). Once a save lands, values apply to the next research call — no host restart needed. Precedence: **card config > patch-row routes > calling-session model > workspace routes key** (reviewer route defaults to the researcher route).
+- Config persists in the host settings system (the `research` section of `~/.dsh/settings.yaml`; schemastery-validated, hot-published on change). Once a save lands, values apply to the next research call — no host restart needed. Precedence: **card config > patch-row routes > calling-session model > host default dispatch** (reviewer route defaults to the researcher route).
 
 ## Config
 

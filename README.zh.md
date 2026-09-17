@@ -12,8 +12,8 @@
 - 拉取门：`fetch_sources=true` 时 sources 空数组 = 门不过；content 缺席 = 拉取失败（如实标注，禁止编造全文）。
 - 内容门：报告须达实质线（`REPORT_MIN_CHARS`）、fact URL 可解析、completed 须有 facts、facts 与 open_questions 不得双空。
 - 搜索 provider：读宿主 **web seam**（`ctx.web`）——用户配的哪家（exa/deepseek）就用哪家；显式配置落空与多 provider 歧义如实上报，不代选不静默。
-- 路由：**单路由**（2026-09-15 拍板：fallback 暂不启用，只取 primary）。来源：`config.routes[0]` > 工作区 routes 键（缺省 `content-writer.researcher`）> fail-loud。`workspace` 是 cordis 配置（供路由解析），不是调用参数。
-- 基建取 `aivideo-core`（link:../aivideo-core——runner 五段真源）。
+- 路由：**单路由**（2026-09-15 拍板：fallback 暂不启用，只取 primary）。来源：`config.routes[0]` > 发起会话模型 > 宿主默认派单（空 provider/model——runner 不发 `agentOptions`）。`workspace` 是 cordis 配置（供路由解析），不是调用参数。
+- 派单基建归本包（`src/runner.ts`，五段 runner 自有真源），账本格式归 dsh-plugin-ledger（在建）。
 - 项目侧留档（证据行进 `底稿/调研.md` 供 outline 引用覆盖门消费）**不是**本插件的事——写作簇在自己的仓里包一层（挂账）。
 
 ## 流程图
@@ -28,7 +28,7 @@ flowchart TD
     A["research(topic, fetch_sources?)<br/>topic 必填——工具 schema required 已拦（直连 engine 空主题 = 防御 throw，不占主链）"] --> C{"web seam 搜索 provider 可用？"}
     C -- "无可用" --> Z2["error 收据：provider 不可用（不派单）"]
     C -- "多 provider 歧义 / 配置落空" --> Z3["error 收据：点名上报，不代选"]
-    C -- "命中" --> D["路由解析（单路由 primary）<br/>config.routes &gt; 工作区 routes 键；皆无 = throw"]
+    C -- "命中" --> D["路由解析（单路由 primary）<br/>config.routes &gt; 发起会话模型；皆无 = 宿主默认派单"]
     D --> E["开账本信封（skill=researcher，tool=research）"]
     E --> S1["工序① 调研员 Researcher（隔离会话）<br/>主题详略自判 → 规划 4-8 条研究线<br/>→ web_search/web_fetch 检索取证<br/>→ 逐源交叉比对 + 全量打标（可靠性五档/单一来源/佐证编号）→ 初稿"]
     S1 -- "structured 缺失" --> N1{"nudge ×1"}
@@ -71,7 +71,7 @@ flowchart TD
 
 - **默认一份配置**：模型（输入框带下拉：已配好的模型都在里面直接点，也可手填 `provider/model` 二段式；**留空 = 跟随主会话**）+ 思考强度（low/medium/high/xhigh，留空 = 宿主默认档）——调研员与审查员两道隔离工序共用；
 - **高级：分开配**：勾选后拆出调研员（初稿+修订轮）与审查员两块，各自模型/思考强度，留空字段回落默认配置；
-- 配置持久化归宿主 settings 系统（`~/.dsh/settings.yaml` 的 research 段，schemastery schema 校验，变更热推送）；保存落盘后对下一次 research 调用即生效，无需重启 host。优先级：**插件卡配置 > patch 行 routes > 发起会话模型 > 工作区路由键**（审查员路由缺省 = 调研员同路由）。
+- 配置持久化归宿主 settings 系统（`~/.dsh/settings.yaml` 的 research 段，schemastery schema 校验，变更热推送）；保存落盘后对下一次 research 调用即生效，无需重启 host。优先级：**插件卡配置 > patch 行 routes > 发起会话模型 > 宿主默认派单**（审查员路由缺省 = 调研员同路由）。
 
 ## config
 

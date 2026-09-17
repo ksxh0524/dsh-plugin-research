@@ -2,8 +2,8 @@
  *
  * dispatch 注入点隔离（不烧钱、不真派）；runner 五段照跑（合同段预检 + validate + nudge 真语义）。
  * 工序链：初稿（调研员）→ 引擎门 → 审查（审查员 issue 清单）→ 一致性门 →（fix? 修订轮）→ 终稿门。
- * 路由固定走工作区路由表 fixture（.av/model-router.json content-writer.researcher 键——工作区路由表锚 2026-09-15 晚随 aivideo-core 迁 .pi→.av，
- * fallbacks 混入脏行以证「明确不消费」）；web seam 换 fake seam 验 provider 识别各分支。
+ * 路由：未配 routes = 宿主默认派单（空 provider/model，runner 不发 agentOptions；按任务选模已摘除）；
+ * 工作区定位由 src/workspace.ts 自有 helper 承担（env AV_WORKSPACE > .av/workspace.json 锚向上找，两级单测在本文件末尾）。
  * 宿主概念（project/留档/证据行）已摘除——主题进、报告出，零文件 IO。
  */
 
@@ -11,32 +11,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { runResearch, resolvePrimaryRoute, buildResearchTask, buildReviewTask, buildFixTask, type ResearchDeps, type ResearchRequest } from "../src/engine.ts";
 import { DELIVERY, OK_REPORT, REVIEW_FIX, REVIEW_FIX_NO_ISSUES, REVIEW_PASS, REVIEW_PASS_WITH_ISSUES, REVIEW_ISSUES, SOURCES } from "./fixtures.ts";
 import type { ResearchDelivery, ReviewDelivery, ReviewIssue } from "../src/contract.ts";
-import type { RunnerDispatchRequest, RunnerDispatchResult, RunnerLedgerRecord } from "aivideo-core/src/subagent/runner.ts";
+import type { RunnerDispatchRequest, RunnerDispatchResult, RunnerLedgerRecord } from "../src/runner.ts";
+import { resolveWorkspaceRoot } from "../src/workspace.ts";
 import type { WebSeam } from "../src/web.ts";
 
 function makeWs(): string {
   return mkdtempSync(join(tmpdir(), "dsh-research-"));
-}
-
-/** 工作区路由表 fixture（单主路由 + 脏 fallback 行，证「明确不消费」）。 */
-function seedRoutes(ws: string): void {
-  mkdirSync(join(ws, ".av"), { recursive: true });
-  writeFileSync(
-    join(ws, ".av", "model-router.json"),
-    JSON.stringify({
-      routes: {
-        "content-writer.researcher": {
-          primary: "buzzai/qwen3.8-flash-free",
-          fallbacks: [{ model: "opencode-zen-1/muse-spark-1.3-contributor-free", thinking_level: "medium" }],
-          thinking: "xhigh",
-        },
-      },
-    }),
-  );
 }
 
 /** web seam fake：给一组 provider（id + available）。 */
@@ -79,7 +63,6 @@ const reviewTaskOf = (calls: RunnerDispatchRequest[]): string => calls[1].task;
 test("research 快乐链（审查 pass）：初稿 → 审查放行 → 收据（终稿过代码门，零修订轮）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const ledger: RunnerLedgerRecord[] = [];
     const req: ResearchRequest = { topic: "2025 财年可口可乐与百事的财报对比" };
@@ -94,6 +77,8 @@ test("research 快乐链（审查 pass）：初稿 → 审查放行 → 收据�
     assert.ok(!("path" in out.details), "零宿主概念：收据无落档路径");
     // 工序任务书：调研员（自判详略+交叉比对+打标）与审查员（亲核+issue 三段式+不重写主体）
     assert.equal(calls.length, 2, "审查 pass = 两道隔离工序");
+    assert.equal(calls[0].provider, "", "未配 routes = 宿主默认派单（空 provider，runner 不发 agentOptions）");
+    assert.equal(calls[0].model, "", "未配 routes = 宿主默认派单（空 model）");
     const draftTask = draftTaskOf(calls);
     assert.ok(draftTask.includes("你是调研员（Researcher）"), "身份是调研员不是写手");
     assert.ok(draftTask.includes("自判"), "主题详略自判进任务书");
@@ -124,7 +109,6 @@ test("research 快乐链（审查 pass）：初稿 → 审查放行 → 收据�
 test("research fix 链：审查退回 → 修订轮 → 终稿（三道工序，issue 清单进修订任务书）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const out = await runResearch(
       { topic: "可乐财报" },
@@ -147,7 +131,6 @@ test("research fix 链：审查退回 → 修订轮 → 终稿（三道工序，
 test("research 审查结论一致性门：fix 却无 issues → 拒；pass 却带 issues → 拒（都不派修订轮）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const noIssues = await runResearch(
       { topic: "t" },
@@ -170,7 +153,6 @@ test("research 审查结论一致性门：fix 却无 issues → 拒；pass 却�
 test("research 修订轮失败（审查退回后 structured 缺失）→ error，不给未修订报告", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const bad = { ok: true, output: "无结构化交付", structured: null, stopReason: "completed" } as RunnerDispatchResult;
     const out = await runResearch(
       { topic: "t" },
@@ -186,7 +168,6 @@ test("research 修订轮失败（审查退回后 structured 缺失）→ error�
 test("research 终稿标注门（fix 链）：来源行缺〔可靠性：〕标注 → 代码门拒收", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const unmarked = {
       ...DELIVERY,
       report_markdown: OK_REPORT.replace("〔可靠性：官方一手〕", "").replace("〔可靠性：权威媒体〕", ""),
@@ -205,7 +186,6 @@ test("research 终稿标注门（fix 链）：来源行缺〔可靠性：〕标�
 test("research fetch_sources=true（pass 链）：审查任务书带拉取段；审查交付 sources → 收据带附录与计数", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const reviewPassWithSources: ReviewDelivery = { ...REVIEW_PASS, sources: SOURCES };
     const out = await runResearch(
@@ -229,7 +209,6 @@ test("research fetch_sources=true（pass 链）：审查任务书带拉取段；
 test("research fetch_sources=true（fix 链）：审查员已拉来源进修订任务书；修订交付 sources 过拉取门", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const reviewFixWithSources: ReviewDelivery = { ...REVIEW_FIX, sources: SOURCES };
     const fixed: ResearchDelivery = { ...DELIVERY, sources: SOURCES };
@@ -250,7 +229,6 @@ test("research fetch_sources=true（fix 链）：审查员已拉来源进修订�
 test("research fetch_sources=true 但审查交付无 sources[] → 终稿拉取门拦截（error）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const out = await runResearch(
       { topic: "可乐财报", fetchSources: true },
       deps(ws, fakeDispatch([() => okStep(), () => reviewStep(REVIEW_PASS), () => okStep()], []), undefined, seam([["exa", true]])),
@@ -265,7 +243,6 @@ test("research fetch_sources=true 但审查交付无 sources[] → 终稿拉取�
 test("research：库级可选 strands（调用方自带已知条目）进初稿任务书；工具面不暴露该参数", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const out = await runResearch(
       { topic: "主题甲", strands: ["待查事项乙"] },
@@ -298,7 +275,6 @@ test("research：直连 engine 且 topic 为空 → fail-loud 不空跑（schema
 test("research：web seam 无可用 provider → 收据 error 不派单（不烧路由轮次）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const out = await runResearch({ topic: "t" }, deps(ws, fakeDispatch([() => okStep()], calls), undefined, seam([])));
     assert.equal(out.verdict, "error");
@@ -312,7 +288,6 @@ test("research：web seam 无可用 provider → 收据 error 不派单（不烧
 test("research：多 provider 可用且未显式配置 → 收据 error（不代选，如实上报 AMBIGUOUS 语义）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const out = await runResearch(
       { topic: "t" },
       deps(
@@ -335,7 +310,6 @@ test("research：多 provider 可用且未显式配置 → 收据 error（不代
 test("research：配置 provider 落空（未注册/不可用）→ 收据 error 点名，不回落单可用", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const miss = await runResearch(
       { topic: "t" },
       deps(ws, async () => ({ ok: false, output: "" }), undefined, seam([["exa", true]], "deepseek")),
@@ -350,7 +324,6 @@ test("research：配置 provider 落空（未注册/不可用）→ 收据 error
 test("research：初稿全轮失败（fresh+nudge 仍 structured 缺失）→ 收据 error，无审查轮", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const bad = { ok: true, output: "无结构化交付", structured: null, stopReason: "completed" } as RunnerDispatchResult;
     const out = await runResearch({ topic: "t" }, deps(ws, fakeDispatch([() => bad, () => bad], calls), undefined, seam([["exa", true]])));
@@ -365,7 +338,6 @@ test("research：初稿全轮失败（fresh+nudge 仍 structured 缺失）→ �
 test("research：初稿 nudge 一轮翻盘 → 审查继续，收据 pass", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const ledger: RunnerLedgerRecord[] = [];
     const bad = { ok: true, output: "无结构化交付", structured: null, stopReason: "completed" } as RunnerDispatchResult;
@@ -385,7 +357,6 @@ test("research：初稿 nudge 一轮翻盘 → 审查继续，收据 pass", asyn
 test("research：初稿内容门拦短报告交付 → 收据 error，无审查轮", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const thinDelivery = { ...DELIVERY, report_markdown: "太短" } as ResearchDelivery;
     const out = await runResearch(
@@ -400,7 +371,7 @@ test("research：初稿内容门拦短报告交付 → 收据 error，无审查�
   }
 });
 
-test("resolvePrimaryRoute：config.routes 显式第一优先（多给忽略）；工作区路由表键次之（fallbacks 不消费）；皆无 fail-loud", () => {
+test("resolvePrimaryRoute：config.routes 显式第一优先（多给忽略，thinkingLevel 透传）；皆无 = 宿主默认派单（不抛）", () => {
   const ws = makeWs();
   try {
     const explicit = resolvePrimaryRoute(ws, {
@@ -410,11 +381,32 @@ test("resolvePrimaryRoute：config.routes 显式第一优先（多给忽略）�
       ],
     });
     assert.deepEqual(explicit, { provider: "p1", model: "m1" });
-    seedRoutes(ws);
-    assert.deepEqual(resolvePrimaryRoute(ws, {}), { provider: "buzzai", model: "qwen3.8-flash-free", thinkingLevel: "xhigh" });
-    assert.throws(() => resolvePrimaryRoute(join(tmpdir(), "dsh-research-empty-zz"), {}), /路由缺位/);
+    const withThinking = resolvePrimaryRoute(ws, { routes: [{ provider: "p", model: "m", thinkingLevel: "high" }] });
+    assert.deepEqual(withThinking, { provider: "p", model: "m", thinkingLevel: "high" });
+    assert.deepEqual(resolvePrimaryRoute(ws, {}), { provider: "", model: "" }, "无显式路由 = 宿主默认派单");
+    assert.deepEqual(resolvePrimaryRoute(ws, { routes: [] }), { provider: "", model: "" }, "空数组同默认派单，不抛");
   } finally {
     rmSync(ws, { recursive: true, force: true });
+  }
+});
+
+test("resolveWorkspaceRoot：env AV_WORKSPACE 优先；无 env 时向上找 .av/workspace.json 锚；皆无抛错给出路", () => {
+  const root = makeWs();
+  try {
+    mkdirSync(join(root, ".av"), { recursive: true });
+    writeFileSync(join(root, ".av", "workspace.json"), JSON.stringify({ kind: "auto-cut" }));
+    const nested = join(root, "a", "b");
+    mkdirSync(nested, { recursive: true });
+    assert.equal(resolveWorkspaceRoot(nested, {}), root, "无 env 时向上找中性锚");
+    assert.equal(resolveWorkspaceRoot(nested, { AV_WORKSPACE: "/tmp/env-ws" }), resolve("/tmp/env-ws"), "env 优先于锚");
+    const bare = makeWs();
+    try {
+      assert.throws(() => resolveWorkspaceRoot(bare, {}), /工作区未找到/, "无 env 无锚 = fail-loud，报错给出路");
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -469,7 +461,6 @@ test("任务书单元：三工序任务书形态（draft 自判/打标；review 
 test("reviewRoutes：审查员路由只进工序②（初稿/修订轮仍用调研员路由——UI「分开配」口径）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     const out = await runResearch(
       {
@@ -496,7 +487,6 @@ test("reviewRoutes：审查员路由只进工序②（初稿/修订轮仍用调�
 test("reviewRoutes 缺省：工序②与调研员同路由（默认共用一份配置的口径）", async () => {
   const ws = makeWs();
   try {
-    seedRoutes(ws);
     const calls: RunnerDispatchRequest[] = [];
     await runResearch(
       { topic: "可乐财报", routes: [{ provider: "res", model: "shared-model", thinkingLevel: "high" }] },
