@@ -15,8 +15,8 @@ importers:
         specifier: ^3.18.2
         version: 3.18.2
       aivideo-core:
-        specifier: link:../aivideo-core
-        version: link:../aivideo-core
+        specifier: link:../autovideo/aivideo-core
+        version: link:../autovideo/aivideo-core
     devDependencies:
       '@commitlint/cli':
         specifier: ^21.0.2

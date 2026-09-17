@@ -27,7 +27,7 @@
     }
   },
   "dependencies": {
-    "aivideo-core": "link:../aivideo-core",
+    "aivideo-core": "link:../autovideo/aivideo-core",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
     "@deepseek-ai/schemastery": "^3.18.2"
   },
