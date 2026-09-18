@@ -4,7 +4,7 @@ Generic topic-driven deep-research DSH plugin. `research(topic, fetch_sources?)`
 
 Shape follows the generic deep-research references ([gpt-researcher](https://docs.gptr.dev/docs/gpt-researcher/gptr/pip-package): `query` in → report + sources metadata out; [open_deep_research](https://github.com/langchain-ai/open_deep_research): messages in → final report out).
 
-## 合同
+## Contract
 
 - Structured delivery: `{case_id, status: "completed|partial", report_markdown, facts: [{assertion,url,date,domain,title?,reliability?,corroboration?}], open_questions: string[], sources?}` — the report is the human-facing artifact, `facts[]` are machine-parseable atoms returned as receipt metadata (the `get_research_sources()` analog; `corroboration` lists corroborating `[SRC-n]` ids — absent = single source), `sources[]` carries per-source full text when `fetch_sources=true`.
 - Review delivery (stage ②): `{case_id, verdict: "pass"|"fix", issues: [{point, problem, fix_hint}], report_markdown, sources?}` — code gate rejects `fix` with an empty issue list and `pass` with issues attached.
