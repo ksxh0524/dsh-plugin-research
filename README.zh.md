@@ -85,6 +85,13 @@ flowchart TD
 
 profile `package.json` 加依赖 + `dsh.profile.bundles` 加包名；本包自带 `cordis.patch.yml` bundle 行。宿主重启只归用户。
 
+## 已知边界
+
+- 只走单路由（无 fallback）：只取第一条显式配置；皆无则跟随发起会话或宿主默认派单——不抛错、不代选服务商。
+- 搜索 provider 必须由宿主 web seam 供给（exa / deepseek）；缺失或歧义 = error 收据，不静默。
+- 报告是自由文本 markdown + 机器 `facts[]` 原子；模型只认自由文本 `provider/model`（无 adapter 目录可配）。
+- 本包不做文件 IO、不知项目为何物；报告留档归调用方。账本信封 fail-open。
+
 ## 浏览器 E2E（UI 验证）
 
 `pnpm check:browser` 自起一次性实例（隔离 `DSH_HOME`、port 0），真驱动无头 Chrome 走

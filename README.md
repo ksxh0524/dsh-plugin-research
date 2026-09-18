@@ -85,6 +85,13 @@ A **research config card** inside the host's Settings → Plugins section (the o
 
 Add the dependency and bundle name to the profile's `package.json`; the package ships its own `cordis.patch.yml` bundle row. Host restart is user-owned.
 
+## Known limits
+
+- Single route only (no fallback): the first explicit entry wins; with no explicit route the runner follows the calling session or host default dispatch — never throws, never guesses a provider.
+- The host web seam must supply a search provider (exa / deepseek); none or ambiguous = error receipt, not a silent choice.
+- Reports are free-text markdown plus machine `facts[]` atoms; the model is addressed as free-text `provider/model` (no adapter directory to configure).
+- This plugin does no file IO and knows no project concepts; saving the report is the caller's job. The ledger envelope is fail-open.
+
 ## Browser E2E (UI verification)
 
 `pnpm check:browser` boots a disposable instance (isolated `DSH_HOME`, port 0) and drives
