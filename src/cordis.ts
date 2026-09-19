@@ -2,8 +2,8 @@
  *
  * 双职责：
  * ① 注册 research 工具（tools/subagents/web；派单通道依赖 ctx.subagents，搜索 provider 识别依赖 web seam）；
- * ② 把 research 配置段装进宿主 settings 系统（`settings.installSection("research", SCHEMA, entry)`，
- *    官方插件设置的正位——宿主设置页「插件」分区按 served namespace ∩ settings.plugin.item 卡派发，
+ * ② 把 research 配置段装进 DSH 实例 settings 系统（`settings.installSection("research", SCHEMA, entry)`，
+ *    官方插件设置的正位——插件管理页按 served namespace ∩ `plugins.item` 同 id 卡配对，
  *    值落 ~/.dsh/settings.yaml 热推送；官方样板 = dsh-agent-default-model 的 agent-default-model 段）。
  *
  * inject 声明 llm/tools/subagents/web（仅可等待服务；reflect/settings 用 ctx 可选链 + 运行时 ctx.inject）；config 由 bundle patch 行注入（workspace/routeKey/routes；
