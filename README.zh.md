@@ -67,7 +67,7 @@ flowchart TD
 
 ## 插件配置（模型 / 思考强度）
 
-DSH 实例侧边栏「插件」管理页里的 **research 配置卡**（官方插件设置正位：服务端 `settings.installSection("research")` + 浏览器半 `plugins.item` 同 id 卡，缺一隐身；卡排在官方卡之后，点开进详情页）。卡形态照官方 `PluginConfigForm` 同形（STANDARDS §4.1/§4.2）：**默认折叠成一行**，点开才渲染控件；**改输入只落草稿，保存是唯一写点**（未保存标记挂折叠头、「丢弃」回基线、非法草稿 block 保存）；DSH 实例文档只读时禁用控件并说明；`Tag`/chevron 复用 DSH 实例 `dsh-client-ui-primitives`。
+DSH 实例侧边栏「插件」管理页里的 **research 配置卡**（官方插件设置正位：服务端 `settings.installSection("research")` + 浏览器半 `plugins.item` 同 id 卡，缺一隐身；卡排在官方卡之后，点开进详情页）。卡形态照官方 `PluginConfigForm` 同形（索引仓 `docs/settings-cards.md` §4.1/§4.2）：**默认折叠成一行**，点开才渲染控件；**改输入只落草稿，保存是唯一写点**（未保存标记挂折叠头、「丢弃」回基线、非法草稿 block 保存）；DSH 实例文档只读时禁用控件并说明；`Tag`/chevron 复用 DSH 实例 `dsh-client-ui-primitives`。
 
 - **默认一份配置**：模型（输入框带下拉：已配好的模型都在里面直接点，也可手填 `provider/model` 二段式；**留空 = 跟随主会话**）+ 思考强度（low/medium/high/xhigh，留空 = DSH 实例默认档）——调研员与审查员两道隔离工序共用；
 - **高级：分开配**：勾选后拆出调研员（初稿+修订轮）与审查员两块，各自模型/思考强度，留空字段回落默认配置；
@@ -97,4 +97,4 @@ profile `package.json` 加依赖 + `dsh.profile.bundles` 加包名；本包自�
 `pnpm check:browser` 自起一次性实例（隔离 `DSH_HOME`、port 0），真驱动无头 Chrome 走
 「侧边栏插件页 → 点开 research 卡详情」全链 DOM 断言：entry 注册在 `plugins.item` 下并带一句话简介、`aria-expanded` 翻转、
 `label[for]` 真关联、草稿态（未保存标 / 丢弃回基线 / 非法草稿 block 保存）、保存是唯一写点（落盘后收起再回读）。
-浏览器半任何改动必须过它（STANDARDS §4.1/§4.2/§5；静态形态判定在 dsh-check `pluginStandardSuite` 第 5 用例）。
+浏览器半任何改动必须过它（索引仓 `docs/settings-cards.md` §4.1/§4.2 + 索引仓 `docs/runbooks/live-verify.md`；静态形态判定在 dsh-check `pluginStandardSuite` 第 5 用例）。

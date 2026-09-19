@@ -67,7 +67,7 @@ Key property: the three stages are **mutually blind sessions** (only frozen JSON
 
 ## Plugin config (model / thinking intensity)
 
-A **research config card** on the DSH instance's sidebar Plugins management page (the official plugin-settings position: server half `settings.installSection("research")` + browser half `plugins.item` entry with the same id — neither alone is visible; the card sits behind the official cards and opens a detail page). Its shape mirrors the official `PluginConfigForm` (STANDARDS §4.1/§4.2): **collapsed into one row by default**, controls render only when expanded; **typing only stages a draft — saving is the single write point** (unsaved tag on the header, discard restores the baseline, an invalid draft blocks the save); a read-only host document disables the controls and says so; `Tag` / chevron come from the host `dsh-client-ui-primitives`.
+A **research config card** on the DSH instance's sidebar Plugins management page (the official plugin-settings position: server half `settings.installSection("research")` + browser half `plugins.item` entry with the same id — neither alone is visible; the card sits behind the official cards and opens a detail page). Its shape mirrors the official `PluginConfigForm` (index `docs/settings-cards.md` §4.1/§4.2): **collapsed into one row by default**, controls render only when expanded; **typing only stages a draft — saving is the single write point** (unsaved tag on the header, discard restores the baseline, an invalid draft blocks the save); a read-only host document disables the controls and says so; `Tag` / chevron come from the host `dsh-client-ui-primitives`.
 
 - **One shared config by default**: model (the box has a dropdown — every configured model is one click away, or type `provider/model` by hand; **empty = follow the calling session**) + thinking intensity (low/medium/high/xhigh; empty = host default) — shared by the Researcher and Reviewer isolated stages;
 - **Advanced: split**: tick to split into Researcher (draft + revision round) and Reviewer blocks, each with its own model/thinking; empty fields fall back to the shared default;
@@ -101,5 +101,5 @@ the entry is registered under `plugins.item` with a one-line summary, the detail
 labels are real `label[for]` associations, the draft state holds (unsaved tag / discard restores baseline /
 an invalid draft blocks the save), and saving is the single write point (it collapses after the Host settles,
 and reopening reads the new value back).
-Any browser-half change must pass it (STANDARDS §4.1/§4.2/§5; the static shape check is case 5 of
+Any browser-half change must pass it (index `docs/settings-cards.md` §4.1/§4.2 + index `docs/runbooks/live-verify.md`; the static shape check is case 5 of
 dsh-check's `pluginStandardSuite`).

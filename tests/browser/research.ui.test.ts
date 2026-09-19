@@ -1,4 +1,4 @@
-/** research.ui.test.ts —— UI 自动化验证（STANDARDS §4.1/§4.2 + §5 机器件，dsh-check 底座）：
+/** research.ui.test.ts —— UI 自动化验证（索引仓 `docs/settings-cards.md` §4.1/§4.2 + 索引仓 `docs/runbooks/live-verify.md` 机器件，dsh-check 底座）：
  *  一次性实例真启、真浏览器载入，走「侧边栏插件面板 → research 卡 → 点开详情」全链 DOM 断言。
  *  卡形态断言 = DSH 实例 PluginConfigForm 同形的四件套：① plugins.item 注册（data-plugin-item）
  *  ② 详情里默认折叠（点开才有控件）③ 暂存草稿（改输入不落盘，未保存标 + 丢弃可回基线）
@@ -47,12 +47,13 @@ uiScenarioSuite({
         const root = detail.locator("li.rsch-card").first();
         await root.waitFor({ timeout: 10_000 });
         const header = detail.getByRole("button", { name: /Research 调研/ }).first();
-        if ((await header.getAttribute("aria-expanded")) !== "false") throw new Error("卡默认未折叠（aria-expanded ≠ false）——违 §4.1");
+        if ((await header.getAttribute("aria-expanded")) !== "false")
+          throw new Error("卡默认未折叠（aria-expanded ≠ false）——违索引仓 docs/settings-cards.md §4.1");
         if (await detail.locator(".rsch-input").count()) throw new Error("折叠态就渲染了控件——平铺常开，多吃多占");
         await header.click();
         await header.waitFor({ state: "visible" });
         if ((await header.getAttribute("aria-expanded")) !== "true") throw new Error("点开没生效（aria-expanded 未转 true）");
-        // 远端 getConfig 是异步读：等草稿回填再断（§5 冷扫描纪律）。
+        // 远端 getConfig 是异步读：等草稿回填再断（索引仓 docs/runbooks/live-verify.md 冷扫描纪律）。
         const modelInput = detail.locator("input#rsch-f-model").first();
         await modelInput.waitFor({ state: "visible", timeout: 20_000 }).catch(async () => {
           throw new Error("卡未渲染控件；body 文本=" + JSON.stringify((await detail.locator(".rsch-body").first().innerText()).slice(0, 200)));
@@ -87,10 +88,10 @@ uiScenarioSuite({
         await modelInput.fill("deepseek/draft-model");
         await detail.locator(".rsch-save:not([disabled])").first().waitFor({ state: "visible", timeout: 10_000 });
         if (!(await detail.getByText("未保存", { exact: false }).first().count())) throw new Error("草稿态无未保存标记");
-        // 复用面实证（STANDARDS §4.3）：未保存标记必须是 DSH 实例 primitives 的 Tag——require("@deepseek-ai/dsh-client-ui-primitives")
+        // 复用面实证（索引仓 `docs/design-tokens.md` §4.3）：未保存标记必须是 DSH 实例 primitives 的 Tag——require("@deepseek-ai/dsh-client-ui-primitives")
         // 命中才会带 data-tone + 自有 CSS-module class；走手搓替身即 require 未通，此处必须红。
         if (!(await detail.locator("span[data-tone][class*='rsch-pending']").first().count()))
-          throw new Error("未保存标记走了替身路径——ui-primitives require 未命中（§4.3 复用面断裂）");
+          throw new Error("未保存标记走了替身路径——ui-primitives require 未命中（索引仓 docs/design-tokens.md §4.3 复用面断裂）");
         // ② 非法草稿 block 保存（不静默丢）：填一段不带 "/" 的文本，保存必须回禁用。
         await modelInput.fill("nope");
         await detail.locator(".rsch-save[disabled]").first().waitFor({ state: "visible", timeout: 10_000 });

@@ -56,7 +56,7 @@ export const RESEARCH_SETTINGS_SCHEMA = z.object({
 interface SettingsFace {
   installSection?(owner: unknown, ns: string, schema: unknown, entry: unknown, hooks: unknown): void;
   replace?(ns: string, value: unknown): Promise<void> | void;
-  /** 宿主文档是否接受写（只读文档时插件卡必须禁用控件并说明，不能让用户敲完才报错——STANDARDS §4.2）。 */
+  /** 宿主文档是否接受写（只读文档时插件卡必须禁用控件并说明，不能让用户敲完才报错——索引仓 `docs/settings-cards.md` §4.2）。 */
   writable?: boolean;
 }
 
