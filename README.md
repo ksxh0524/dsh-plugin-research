@@ -68,7 +68,7 @@ pnpm check:browser             # browser-half changes only
 
 ## Browser half
 
-`lib/client.js` (`./client` subpath): the `research` card on the host Plugins page (`plugins.item`, same id as the server half `settings.installSection("research")` — neither alone is visible). Collapsed to one row by default; editing stages a draft and saving is the single write point; controls use host primitives (index `docs/settings-cards.md` §1.1/§1.2, `docs/runbooks/live-verify.md`).
+`lib/client.js` (`./client` subpath): the `research` card on the host Plugins page (`plugins.item`, same id as the server half `settings.installSection("research")` — neither alone is visible). The detail page renders the form directly (no inner folding); closed-value controls (dropdowns/checkbox) write through on change, text boxes stage a draft and saving is their single write point; no discard button — drafts die with the page; dropdowns follow the host selectInput shape (index `docs/settings-cards.md` §1.1/§1.2, `docs/runbooks/live-verify.md`).
 
 ## Known limits
 

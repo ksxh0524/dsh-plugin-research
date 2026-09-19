@@ -68,7 +68,7 @@ pnpm check:browser             # 只在改浏览器半时跑
 
 ## Browser half
 
-`lib/client.js`（`./client` 子路径）：宿主插件管理页上的 `research` 卡（`plugins.item`，与服务端 `settings.installSection("research")` 同 id——缺一半即隐身）。默认折叠成一行；改输入只落草稿，保存是唯一写点；控件复用宿主 primitives（索引仓 `docs/settings-cards.md` §1.1/§1.2、`docs/runbooks/live-verify.md`）。
+`lib/client.js`（`./client` 子路径）：宿主插件管理页上的 `research` 卡（`plugins.item`，与服务端 `settings.installSection("research")` 同 id——缺一半即隐身）。详情直出表单（不套折叠框）；封闭值域控件（下拉/勾选）改了即存，文本框改输入只落草稿、保存是其唯一写点；无丢弃按钮——草稿随离页丢弃；下拉照宿主 selectInput 同形（索引仓 `docs/settings-cards.md` §1.1/§1.2、`docs/runbooks/live-verify.md`）。
 
 ## 已知边界
 
