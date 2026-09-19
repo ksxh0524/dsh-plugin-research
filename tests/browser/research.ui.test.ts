@@ -1,8 +1,8 @@
-/** research.ui.test.ts —— UI 自动化验证（索引仓 `docs/settings-cards.md` §4.1/§4.2 + 索引仓 `docs/runbooks/live-verify.md` 机器件，dsh-check 底座）：
+/** research.ui.test.ts —— UI 自动化验证（索引仓 `docs/settings-cards.md` §1.1/§1.2 + 索引仓 `docs/runbooks/live-verify.md` 机器件，dsh-check 底座）：
  *  一次性实例真启、真浏览器载入，走「侧边栏插件面板 → research 卡 → 点开详情」全链 DOM 断言。
- *  卡形态断言 = DSH 实例 PluginConfigForm 同形的四件套：① plugins.item 注册（data-plugin-item）
- *  ② 详情里默认折叠（点开才有控件）③ 暂存草稿（改输入不落盘，未保存标 + 丢弃可回基线）
- *  ④ 保存是唯一写点（成功后收起、重开回读新值）。
+ *  卡形态断言 = 宿主 ItemCard/ItemDetail 同形的四件套：① plugins.item 注册（data-plugin-item）
+ *  ② 详情直出表单（无折叠、无第二次点击）③ 文本框暂存草稿（改输入不落盘，未保存标；离页即弃，无丢弃按钮）
+ *  ④ 文本框保存是其唯一写点（成功刷新基线不清屏、重开回读新值）；下拉/勾选单字段直写（改了即存，不点亮保存）。
  *  跑法：pnpm check:browser。 */
 import { uiScenarioSuite } from "dsh-check";
 import { fileURLToPath } from "node:url";
@@ -30,11 +30,20 @@ async function openResearchDetail(card: any, page: any) {
   return detail;
 }
 
+/** 回插件列表（详情页左上「‹ 插件列表」）并等卡片行重现：详情卸载，
+ *  再点进即整卡重挂载 → getConfig 重读（reload 会撞宿主 API-Key 引导窗，禁 reload——usage-stats 卡同形先例）。 */
+async function backToPluginList(page: any) {
+  await page.locator("a,button").filter({ hasText: "插件列表" }).first().click({ timeout: 10_000 });
+  const card = page.locator('li[data-plugin-item="research"]').first();
+  await card.waitFor({ state: "visible", timeout: 15_000 });
+  return card;
+}
+
 uiScenarioSuite({
   pluginRoot,
   scenarios: [
     {
-      name: "卡结构 = DSH 实例配置卡：plugins.item 注册 + 简介 + 详情默认折叠 + 点开真 label 控件",
+      name: "卡结构 = 宿主 ItemCard/ItemDetail：plugins.item 注册 + 简介 + 详情直出表单无折叠",
       async run({ page }) {
         const card = await openPluginsPanel(page);
         // 注册：plugins.item entry 按 id 认领（上一代 keyed 槽下线后无此属性即隐身）。
@@ -43,20 +52,14 @@ uiScenarioSuite({
         const cardText = await card.innerText();
         if (!cardText.includes("路由配置")) throw new Error(`summary 简介缺失：${JSON.stringify(cardText.slice(0, 120))}`);
         const detail = await openResearchDetail(card, page);
-        // 表单：page 视图是折叠卡（li.rsch-card），默认折叠，body 未渲染。
-        const root = detail.locator("li.rsch-card").first();
+        // 表单：page 视图直出 div.rsch-form，无折叠头、无第二次点击。
+        const root = detail.locator("div.rsch-form").first();
         await root.waitFor({ timeout: 10_000 });
-        const header = detail.getByRole("button", { name: /Research 调研/ }).first();
-        if ((await header.getAttribute("aria-expanded")) !== "false")
-          throw new Error("卡默认未折叠（aria-expanded ≠ false）——违索引仓 docs/settings-cards.md §4.1");
-        if (await detail.locator(".rsch-input").count()) throw new Error("折叠态就渲染了控件——平铺常开，多吃多占");
-        await header.click();
-        await header.waitFor({ state: "visible" });
-        if ((await header.getAttribute("aria-expanded")) !== "true") throw new Error("点开没生效（aria-expanded 未转 true）");
+        if (await detail.locator(".rsch-head,.rsch-card").count()) throw new Error("详情里套了折叠卡壳——page 该直出表单（索引仓 docs/settings-cards.md §1.1）");
         // 远端 getConfig 是异步读：等草稿回填再断（索引仓 docs/runbooks/live-verify.md 冷扫描纪律）。
         const modelInput = detail.locator("input#rsch-f-model").first();
         await modelInput.waitFor({ state: "visible", timeout: 20_000 }).catch(async () => {
-          throw new Error("卡未渲染控件；body 文本=" + JSON.stringify((await detail.locator(".rsch-body").first().innerText()).slice(0, 200)));
+          throw new Error("表单未渲染控件；表单文本=" + JSON.stringify((await root.innerText()).slice(0, 200)));
         });
         if ((await modelInput.count()) < 1) throw new Error("模型控件缺失");
         // 模型框必须挂 datalist（配好的模型下拉直选；一次性实例可能零商，选项数不断言，只断接线）。
@@ -67,24 +70,28 @@ uiScenarioSuite({
         const selects = await detail.locator(".rsch-select").count();
         if (selects < 1) throw new Error(`思考强度下拉缺失：select=${String(selects)}`);
         if ((await detail.locator(".rsch-select option").count()) < 1) throw new Error("下拉无选项——远端读配置链路未通");
-        // footer 必须有保存/丢弃成对（旧版只有单保存，草稿无处可丢）。
-        if (!(await detail.locator(".rsch-discard").first().isVisible())) throw new Error("footer 缺丢弃");
+        // footer 只有保存（文本草稿唯一写点；草稿离页即弃，不设丢弃入口）。
+        if (await detail.locator(".rsch-discard").count()) throw new Error("丢弃按钮回潮——离页即弃，不设丢弃入口");
+        if (!(await detail.locator(".rsch-save").first().isVisible())) throw new Error("footer 缺保存（文本草稿唯一写点）");
       },
     },
     {
-      name: "暂存草稿：改输入不落盘、未保存标出现、丢弃回基线；保存唯一写点后收起并回读新值",
+      name: "文本框暂存+保存唯一写点；下拉/勾选直写即存；草稿离页即弃、无丢弃按钮",
       async run({ page }) {
         // 详情由场景一打开后驻留；若单独重跑本场景，则自己走一遍导航（幂等，不依赖执行顺序）。
         let detail = page.locator('[data-plugin-item-detail="research"]').first();
         if (!(await detail.count())) {
           detail = await openResearchDetail(await openPluginsPanel(page), page);
         }
-        const header = detail.getByRole("button", { name: /Research 调研/ }).first();
-        if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
         const modelInput = detail.locator("input#rsch-f-model").first();
         await modelInput.waitFor({ state: "visible", timeout: 20_000 });
         const baseline = await modelInput.inputValue();
-        // ① 改输入：只落草稿，未保存 Tag 挂上折叠头，保存按钮从禁用转可用。
+        const thinkingBaseline = await detail.locator("select#rsch-f-thinking").first().inputValue();
+
+        // 无丢弃按钮（离页即弃，不设显式丢弃入口）。
+        if (await detail.locator(".rsch-discard").count()) throw new Error("丢弃按钮回潮——离页即弃，不设丢弃入口");
+
+        // ① 文本框：改输入只落草稿，未保存 Tag 挂上 footer，保存按钮从禁用转可用。
         await modelInput.fill("deepseek/draft-model");
         await detail.locator(".rsch-save:not([disabled])").first().waitFor({ state: "visible", timeout: 10_000 });
         if (!(await detail.getByText("未保存", { exact: false }).first().count())) throw new Error("草稿态无未保存标记");
@@ -96,19 +103,49 @@ uiScenarioSuite({
         await modelInput.fill("nope");
         await detail.locator(".rsch-save[disabled]").first().waitFor({ state: "visible", timeout: 10_000 });
         if (!(await detail.locator(".rsch-invalid").first().count())) throw new Error("非法草稿缺字段内错误提示");
-        // ③ 丢弃：草稿回基线，未保存标记消失——全程没写过盘（远端只被点开时读过一次）。
-        await detail.locator(".rsch-discard").first().click();
-        if ((await modelInput.inputValue()) !== baseline)
-          throw new Error(`丢弃未回基线：${JSON.stringify(await modelInput.inputValue())} ≠ ${JSON.stringify(baseline)}`);
-        // ④ 唯一写点：合法草稿 → 保存 → 收起 → 重开走远端回读，值必须是新写的。
-        await modelInput.fill("deepseek/test-model");
+        // ③ 离页即弃：回列表（详情卸载）再点进，草稿消失、回基线——全程没写过盘（远端只被点开时读过）。
+        detail = await openResearchDetail(await backToPluginList(page), page);
+        const modelInput2 = detail.locator("input#rsch-f-model").first();
+        await modelInput2.waitFor({ state: "visible", timeout: 20_000 });
+        if ((await modelInput2.inputValue()) !== baseline)
+          throw new Error(`草稿离页未弃：${JSON.stringify(await modelInput2.inputValue())} ≠ ${JSON.stringify(baseline)}`);
+        if (await detail.getByText("未保存", { exact: false }).first().count()) throw new Error("重进仍有未保存标记——草稿该随页走");
+        // ④ 文本框唯一写点：合法草稿 → 保存 → 不清屏（表单常驻）→ 保存按钮回禁用。
+        await modelInput2.fill("deepseek/test-model");
         await detail.locator(".rsch-save").first().click();
-        // 落盘确认后收起（DSH 实例同款时序）：折叠头回到 aria-expanded=false。
-        await detail.locator("button.rsch-head[aria-expanded='false']").first().waitFor({ state: "visible", timeout: 15_000 });
-        await header.click();
-        await modelInput.waitFor({ state: "visible", timeout: 20_000 });
-        const value = await modelInput.inputValue();
-        if (value !== "deepseek/test-model") throw new Error(`回读失配：${JSON.stringify(value)}`);
+        // 保存成功只刷新基线不清屏：表单仍在，保存回到禁用（dirty 消）。
+        await detail.locator(".rsch-save[disabled]").first().waitFor({ state: "visible", timeout: 15_000 });
+        if (!(await detail.locator("div.rsch-form").first().isVisible())) throw new Error("保存后表单消失——详情页常驻不清屏");
+        const value = await modelInput2.inputValue();
+        if (value !== "deepseek/test-model") throw new Error(`保存后本地值失配：${JSON.stringify(value)}`);
+        // ⑤ 下拉直写：改选项即存，不用按保存（保存保持禁用）；回列表再进，回读即新值；用完恢复基线。
+        const thinking2 = detail.locator("select#rsch-f-thinking").first();
+        const target = thinkingBaseline === "high" ? "low" : "high";
+        await thinking2.selectOption(target);
+        // 直写落盘是异步：等本地写完（控件写途中禁用，落盘后回到可用）再离页，否则重进的 getConfig 读到旧值。
+        await page.waitForTimeout(1000);
+        if ((await thinking2.inputValue()) !== target) throw new Error("下拉直写未生效");
+        if (!(await detail.locator(".rsch-save[disabled]").first().count())) throw new Error("下拉改了却点亮保存——直写字段不该进草稿");
+        detail = await openResearchDetail(await backToPluginList(page), page);
+        const thinking3 = detail.locator("select#rsch-f-thinking").first();
+        await thinking3.waitFor({ state: "visible", timeout: 20_000 });
+        if ((await thinking3.inputValue()) !== target)
+          throw new Error(`下拉直写未落盘：${JSON.stringify(await thinking3.inputValue())} ≠ ${JSON.stringify(target)}`);
+        await thinking3.selectOption(thinkingBaseline);
+        await page.waitForTimeout(1000);
+        if ((await thinking3.inputValue()) !== thinkingBaseline) throw new Error("下拉恢复基线未落盘——测试污染了配置");
+        // ⑥ 勾选直写：点一次翻转即存（子表单随显隐），保存全程禁用；再点一次恢复原状。
+        const splitBox = detail.locator("input#rsch-f-split").first();
+        const splitWas = await splitBox.isChecked();
+        await splitBox.click();
+        await page.waitForTimeout(1000);
+        const nowOn = await splitBox.isChecked();
+        if (nowOn === splitWas) throw new Error("勾选直写未生效——开关没翻转");
+        if (nowOn && !(await detail.locator(".rsch-split").first().count())) throw new Error("勾选直写未生效——子表单未现身");
+        if (!(await detail.locator(".rsch-save[disabled]").first().count())) throw new Error("勾选改了却点亮保存——直写字段不该进草稿");
+        await splitBox.click();
+        await page.waitForTimeout(1000);
+        if ((await splitBox.isChecked()) !== splitWas) throw new Error("勾选未恢复原状——测试污染了用户配置");
       },
     },
   ],
