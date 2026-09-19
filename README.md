@@ -1,105 +1,78 @@
 # dsh-plugin-research
 
-Generic topic-driven deep-research DSH plugin. `research(topic, fetch_sources?)` (the only entry point; give a terse or a detailed topic — the flow self-judges). **Engine-code-driven three isolated stages**: ① a Researcher subagent plans its own research strands → targeted `web_search`/`web_fetch` passes → cross-checks every source → tags everything (reliability tiers 官方一手/权威媒体/行业报告/自媒体/论坛, single-source flags, corroboration ids) → composes the draft; ② an isolated Reviewer subagent (frozen draft only) re-verifies sources itself and returns a structured issue list (`verdict: pass | fix` + per-issue `point/problem/fix_hint`); ③ on `fix` the issues are handed back to a Researcher revision round that re-researches the flagged points. The final report must pass engine **code gates** (every source-list row carries 〔可靠性：…〕, single-source facts carry 〔单一来源〕, corroboration references exist, `fetch_sources` delivery present) or the receipt errors — trust is in the gates, not the model's goodwill. `fetch_sources=true` (optional, default false) additionally pulls the cited pages' full text back as an appendix. **Topic in, report out — zero host concepts.** Saving/archiving the report is the caller's job; this plugin does no file IO and knows nothing about projects.
+Generic topic-driven deep-research DSH plugin. `research(topic, fetch_sources?)` is the only entry point — terse or detailed topics self-judge through one engine-code-driven pipeline. Three isolated stages (Researcher draft → Reviewer audit → revision round) deliver a cited report only through deterministic code gates — trust the gates, not goodwill. Topic in, report out: no file IO, no project concepts; archiving the report is the caller's job.
 
-Shape follows the generic deep-research references ([gpt-researcher](https://docs.gptr.dev/docs/gpt-researcher/gptr/pip-package): `query` in → report + sources metadata out; [open_deep_research](https://github.com/langchain-ai/open_deep_research): messages in → final report out).
-
-## Contract
-
-- Structured delivery: `{case_id, status: "completed|partial", report_markdown, facts: [{assertion,url,date,domain,title?,reliability?,corroboration?}], open_questions: string[], sources?}` — the report is the human-facing artifact, `facts[]` are machine-parseable atoms returned as receipt metadata (the `get_research_sources()` analog; `corroboration` lists corroborating `[SRC-n]` ids — absent = single source), `sources[]` carries per-source full text when `fetch_sources=true`.
-- Review delivery (stage ②): `{case_id, verdict: "pass"|"fix", issues: [{point, problem, fix_hint}], report_markdown, sources?}` — code gate rejects `fix` with an empty issue list and `pass` with issues attached.
-- Source tagging is the Researcher's own duty (stage ①), the Reviewer independently audits it (stage ②), and the engine's `verifyFinalReport` gate re-checks it deterministically (stage ③ output) — three layers, none optional.
-- Fetch gate: when `fetch_sources=true`, an empty `sources[]` fails the gate; `content` absent = fetch failed (reported honestly, never fabricated).
-- Content gate: report must reach the substance floor (`REPORT_MIN_CHARS`), fact URLs must parse, `completed` requires facts, facts and open_questions must not both be empty.
-- Search provider: read from the host **web seam** (`ctx.web`) — whichever provider the profile configures (exa / deepseek) is the one used; explicit-config-miss and multi-provider ambiguity are reported honestly, never silently resolved.
-- Routing: **single route** (primary only — fallback deliberately not enabled for now). Source: settings card (`research` section) > patch-line `routes` > calling-session model > host default dispatch (empty provider/model — the runner omits `agentOptions`; never throws). Only the first explicit entry wins; reviewer defaults to the researcher route.
-- Dispatch infrastructure is owned by this package (`src/runner.ts`, the five-stage subagent runner); the ledger envelope format belongs to dsh-plugin-ledger (in progress).
-- Project-side archiving (evidence rows into `底稿/调研.md` for the outline citation gate) is **not** this plugin's business — the writing cluster wraps this engine in its own repo (planned).
-
-## Pipeline
-
-![research 全流程图](docs/pipeline.svg)
+![research pipeline](docs/pipeline.svg)
 
 <details>
-<summary>mermaid source</summary>
+<summary>mermaid source (main chain; any gate failure = error receipt naming the gate)</summary>
 
 ```mermaid
 flowchart TD
-    A["research(topic, fetch_sources?)<br/>topic required — rejected by the tool schema; direct engine calls hit the defensive throw (not on the main chain)"] --> C{"web seam search provider available?"}
-    C -- "none" --> Z2["error receipt: provider unavailable (no dispatch)"]
-    C -- "ambiguous / config miss" --> Z3["error receipt: named report, never silently resolved"]
-    C -- "hit" --> D["route resolution (single route, first entry wins)<br/>settings card &gt; patch routes &gt; caller session model; none = host default (never throws)<br/>reviewer defaults to researcher route"]
-    D --> E["open ledger envelope (skill=researcher, tool=research)"]
-    E --> S1["Stage 1 Researcher (isolated session)<br/>self-judge topic detail → plan 4-8 strands<br/>→ web_search/web_fetch passes<br/>→ cross-check every source + tag all (reliability tiers / single-source / corroboration) → draft"]
-    S1 -- "structured missing" --> N1{"nudge ×1"}
-    N1 -- "still missing" --> Z4["error receipt: draft dispatch failed (all rounds kept)"]
-    N1 -- "delivered" --> G1{"draft gate: substance floor + fact atoms"}
-    G1 -- "fail" --> Z5["error receipt: draft gate rejected"]
-    G1 -- "pass" --> S2["Stage 2 Reviewer (isolated, frozen draft only)<br/>opens sources itself via web_fetch (fact match / dead links / independence / tags / conflicts)<br/>→ structured issue list (point/problem/fix_hint)<br/>when fetch_sources=true, also collects per-source full text into sources[]"]
-    S2 -- "structured missing" --> N2{"nudge ×1"}
-    N2 -- "still missing" --> Z6["error receipt: review failed (unreviewed reports never ship)"]
-    N2 -- "verdict returned" --> G2{"review consistency gate"}
-    G2 -- "fix with no issues / pass with issues" --> Z7["error receipt: inconsistent review verdict"]
-    G2 -- "pass (issues empty)" --> F["final = draft<br/>(adopts reviewer's typo-level fixes + sources)"]
-    G2 -- "fix (issues present)" --> S3["Stage 3 Researcher revision round (isolated)<br/>re-research per issue (reviewer's fetched sources passed over to avoid re-fetching) → final"]
-    S3 -- "structured missing → nudge ×1 still failing" --> Z8["error receipt: revision failed"]
-    S3 -- "delivered" --> G3
-    F --> G3{"final code gates<br/>① substance + facts ② every source-list row carries 〔可靠性：tier〕<br/>③ single-source facts carry 〔单一来源〕 ④ corroboration refs exist<br/>⑤ sources present when fetch_sources=true"}
-    G3 -- "any fail" --> Z9["error receipt: names the gate and the problem"]
-    G3 -- "all pass" --> OK["pass receipt<br/>report full text + source full-text appendix + details (facts/sources/reviewed…)"]
-    OK --> R["tool render returns three text blocks<br/>summary / report / source appendix"]
-    OK -.-> L["ledger envelope closed (fail-open)"]
-    style Z1 fill:#f9d6d6,color:#5a1414
-    style Z2 fill:#f9d6d6,color:#5a1414
-    style Z3 fill:#f9d6d6,color:#5a1414
-    style Z4 fill:#f9d6d6,color:#5a1414
-    style Z5 fill:#f9d6d6,color:#5a1414
-    style Z6 fill:#f9d6d6,color:#5a1414
-    style Z7 fill:#f9d6d6,color:#5a1414
-    style Z8 fill:#f9d6d6,color:#5a1414
-    style Z9 fill:#f9d6d6,color:#5a1414
-    style OK fill:#d8efdb,color:#14401a
+    A["research(topic, fetch_sources?)"] --> C{"web provider available?"}
+    C --> D["route: card > patch routes > session model > host default"]
+    D --> S1["Stage 1 · Researcher draft"]
+    S1 --> S2["Stage 2 · Reviewer audit"]
+    S2 --> V{"verdict"}
+    V -- "pass" --> G["final code gates"]
+    V -- "fix" --> S3["Stage 3 · revision round"]
+    S3 --> G
+    G --> OK["pass receipt: report + facts + sources?"]
 ```
 
 </details>
 
-Key property: the three stages are **mutually blind sessions** (only frozen JSON crosses between them via the engine), **every transition is decided by engine code**, and any gate failure = error receipt — an unreviewed report is never delivered.
+`docs/pipeline.svg` draws the same chain with all error receipts; the mermaid above keeps the main chain only (9 nodes).
 
-## Plugin config (model / thinking intensity)
+## Tools & Services
 
-A **research config card** on the DSH instance's sidebar Plugins management page (the official plugin-settings position: server half `settings.installSection("research")` + browser half `plugins.item` entry with the same id — neither alone is visible; the card sits behind the official cards and opens a detail page). Its shape mirrors the official `PluginConfigForm` (index `docs/settings-cards.md` §4.1/§4.2): **collapsed into one row by default**, controls render only when expanded; **typing only stages a draft — saving is the single write point** (unsaved tag on the header, discard restores the baseline, an invalid draft blocks the save); a read-only host document disables the controls and says so; `Tag` / chevron come from the host `dsh-client-ui-primitives`.
+| Name       | Kind   | Shape                                                                                                                         |
+| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `research` | Tool   | `research(topic, fetch_sources?)` → verdict receipt `{verdict, summary, details}`; render returns summary / report / appendix |
+| `research` | Remote | Config-plane service (`getConfig` / `setConfig` / `listModels`) backing the settings card (see Contract)                      |
 
-- **One shared config by default**: model (the box has a dropdown — every configured model is one click away, or type `provider/model` by hand; **empty = follow the calling session**) + thinking intensity (low/medium/high/xhigh; empty = host default) — shared by the Researcher and Reviewer isolated stages;
-- **Advanced: split**: tick to split into Researcher (draft + revision round) and Reviewer blocks, each with its own model/thinking; empty fields fall back to the shared default;
-- Config persists in the host settings system (the `research` section of `~/.dsh/settings.yaml`; schemastery-validated, hot-published on change). Once a save lands, values apply to the next research call — no host restart needed. Precedence: **card config > patch-row routes > calling-session model > host default dispatch** (reviewer route defaults to the researcher route).
+## Contract
+
+| Item            | Rule                                                                                                                                                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Report receipt  | `{case_id, status: completed\|partial, report_markdown, facts[{assertion,url,date,domain,reliability?,corroboration?}], open_questions[], sources?}`                                                                                |
+| Review delivery | `{case_id, verdict: pass\|fix, issues[{point,problem,fix_hint}]}` — fix-without-issues and pass-with-issues are rejected                                                                                                            |
+| Gates           | tagging (every source row carries 〔可靠性：…〕; single-source facts carry 〔单一来源〕) · fetch (`fetch_sources=true` ⇒ non-empty `sources[]`) · content (`REPORT_MIN_CHARS`, parseable URLs, facts/open_questions not both empty) |
+| Routing         | single route only: card config > patch-row `routes[0]` > calling-session model > host default (reviewer follows researcher)                                                                                                         |
+| Search          | host web seam (`ctx.web`); none or ambiguous = named error receipt, never a silent choice                                                                                                                                           |
 
 ## Config
 
-| key         | Description                                                                                                   |
-| ----------- | ------------------------------------------------------------------------------------------------------------- |
-| `workspace` | Workspace root; default = session cwd probing (route resolution only)                                         |
-| `routeKey`  | Workspace routes key (default `content-writer.researcher`)                                                    |
-| `routes`    | Explicit primary route (`[{provider, model, thinkingLevel?}]`, first entry only; overridden by the UI config) |
+| key         | Description                                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------------------- |
+| `workspace` | Workspace root; default = session cwd probing (route resolution only)                                           |
+| `routeKey`  | Workspace routes key (default `content-writer.researcher`)                                                      |
+| `routes`    | Explicit primary route (`[{provider, model, thinkingLevel?}]`, first entry only; overridden by the card config) |
 
 ## Install
 
-Add the dependency and bundle name to the profile's `package.json`; the package ships its own `cordis.patch.yml` bundle row. Host restart is user-owned.
+```sh
+# profile package.json dependencies (local checkout until the first npm release):
+"dsh-plugin-research": "link:../plugin-research"
+```
+
+Bundle row: package `dsh-plugin-research` + patch insert id `dsh-plugin-research-main` (empty config = follow). Host restart is user-owned.
+
+## Verify
+
+```sh
+node --test tests/*.test.ts   # server logic first
+pnpm check                     # prettier + tsc + full tests
+pnpm check:browser             # browser-half changes only
+```
+
+## Browser half
+
+`lib/client.js` (`./client` subpath): the `research` card on the host Plugins page (`plugins.item`, same id as the server half `settings.installSection("research")` — neither alone is visible). Collapsed to one row by default; editing stages a draft and saving is the single write point; controls use host primitives (index `docs/settings-cards.md` §1.1/§1.2, `docs/runbooks/live-verify.md`).
 
 ## Known limits
 
-- Single route only (no fallback): the first explicit entry wins; with no explicit route the runner follows the calling session or host default dispatch — never throws, never guesses a provider.
-- The host web seam must supply a search provider (exa / deepseek); none or ambiguous = error receipt, not a silent choice.
-- Reports are free-text markdown plus machine `facts[]` atoms; the model is addressed as free-text `provider/model` (no adapter directory to configure).
-- This plugin does no file IO and knows no project concepts; saving the report is the caller's job. The ledger envelope is fail-open.
-
-## Browser E2E (UI verification)
-
-`pnpm check:browser` boots a disposable instance (isolated `DSH_HOME`, port 0) and drives
-headless Chrome through the sidebar Plugins page -> opening the research card's detail page, asserting real DOM:
-the entry is registered under `plugins.item` with a one-line summary, the detail form is a folded card
-(collapsed by default, no controls while collapsed), `aria-expanded` flips,
-labels are real `label[for]` associations, the draft state holds (unsaved tag / discard restores baseline /
-an invalid draft blocks the save), and saving is the single write point (it collapses after the Host settles,
-and reopening reads the new value back).
-Any browser-half change must pass it (index `docs/settings-cards.md` §4.1/§4.2 + index `docs/runbooks/live-verify.md`; the static shape check is case 5 of
-dsh-check's `pluginStandardSuite`).
+- Single route only (no fallback); with no explicit route the runner follows the calling session or host default — never throws, never picks a provider.
+- The host web seam must supply a search provider; none or ambiguous = error receipt, not a silent choice.
+- No file IO, no project concepts; the ledger envelope is fail-open.
+- Model is free-text `provider/model` (no adapter directory); free text vs upstream option catalog is parked for the user (index debt 原#19).
